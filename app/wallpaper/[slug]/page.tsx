@@ -79,17 +79,19 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
           
           {/* Left Column: Image Preview */}
           <div className="lg:col-span-8 flex flex-col gap-4">
-            <div className="relative w-full aspect-[4/3] md:aspect-video lg:aspect-[4/3] bg-zinc-200 dark:bg-zinc-900 rounded-2xl md:rounded-3xl overflow-hidden group border border-zinc-200 dark:border-white/5 shadow-sm">
+            {/* Added bg-zinc-950 and flex centering to handle the non-zoomed contain view */}
+            <div className="relative w-full aspect-[4/3] md:aspect-video lg:aspect-[4/3] bg-zinc-950 rounded-2xl md:rounded-3xl overflow-hidden group border border-zinc-200 dark:border-white/5 shadow-2xl flex items-center justify-center">
               <Image
                 src={wallpaper.src}
                 alt={wallpaper.title}
                 fill
                 priority
                 sizes="(max-width: 1024px) 100vw, 66vw"
-                className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                /* Updated from object-cover to object-contain to fix the zoom/crop issue */
+                className="object-contain transition-transform duration-700 ease-out group-hover:scale-[1.01]"
               />
               
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
                 <button 
                   className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   aria-label="View Fullscreen"
@@ -122,7 +124,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
               <div className="grid grid-cols-2 gap-3">
                 <LikeButton initialLikes={wallpaper.likes} />
                 <div className="w-full flex items-center justify-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 text-zinc-600 dark:text-zinc-400 py-3.5 rounded-xl font-medium border border-zinc-200 dark:border-white/5 cursor-default">
-                  {wallpaper.resolution.split(' ')[0]} {/* Display only e.g. "4K" */}
+                  {wallpaper.resolution.split(' ')[0]}
                 </div>
               </div>
             </div>

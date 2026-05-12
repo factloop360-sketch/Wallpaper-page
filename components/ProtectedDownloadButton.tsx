@@ -39,12 +39,6 @@ export default function ProtectedDownloadButton({ title }: ProtectedDownloadButt
       <LoginModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onLogin={() => {
-          setIsLoggedIn(true);
-          setIsModalOpen(false);
-          // Optional: Automatically trigger download after successful login
-          setTimeout(() => alert(`Successfully logged in! Downloading: ${title}`), 400);
-        }} 
       />
     </>
   );
