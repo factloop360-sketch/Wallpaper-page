@@ -602,7 +602,7 @@ export default function AdminCommandCenter() {
             </div>
             <h2 className="text-2xl font-black italic uppercase tracking-tighter text-center mb-2">Confirm Purge</h2>
             <p className="text-zinc-400 text-xs text-center mb-8 leading-relaxed">
-              You are about to permanently delete <strong className="text-white">"{deleteTarget.title}"</strong>. This will erase the record from the database and physically remove the file from the storage bucket.
+              You are about to permanently delete <strong className="text-white">&quot;{deleteTarget.title}&quot;</strong>. This will erase the record from the database and physically remove the file from the storage bucket.
             </p>
             <div className="flex gap-3">
               <button disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50">Cancel</button>
