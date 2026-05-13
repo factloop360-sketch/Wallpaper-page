@@ -1,125 +1,125 @@
-"use client";
+import React from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { createClient } from "@/utils/supabase/server";
+import MasonryGrid from "@/components/MasonryGrid";
+import FilterBar from "@/components/FilterBar";
 
-import React, { useState, useMemo } from "react";
-import WallpaperCard from "@/components/WallpaperCard";
-import Navbar from "@/components/Navbar";
-import { MOCK_WALLPAPERS, CATEGORIES } from "@/lib/wallpapers";
+interface HomeProps {
+  searchParams: Promise<{
+    category?: string;
+    sort?: string;
+    q?: string;
+  }>;
+}
 
-// --- Icons specific to the main page ---
-const FlameIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>
-);
+export default async function Home({ searchParams }: HomeProps) {
+  // 1. Await Next.js 15 parameters and initialize Supabase
+  const params = await searchParams;
+  const supabase = await createClient();
+  
+  // 2. Extract Filter, Sort, and Search parameters from the URL
+  const category = params.category || "all";
+  const sort = params.sort || "latest";
+  const search = params.q || "";
 
-const SearchIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-);
+  // 3. Initialize the base Supabase Query
+  let query = supabase.from("wallpapers").select("*");
 
-// --- Adaptive Layout Constants ---
-const CONTAINER_PADDING = "px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 min-[1920px]:px-24";
-const CONTAINER_MAX_WIDTH = "max-w-[2400px] mx-auto";
+  // 4. Apply Search Filter
+  if (search) {
+    query = query.ilike("title", `%${search}%`);
+  }
 
-export default function WallpaperPlatform() {
-  const [activeCategory, setActiveCategory] = useState("For You");
-  const [searchQuery, setSearchQuery] = useState("");
+  // 5. Apply Category Filter
+  if (category !== "all") {
+    query = query.eq("category", category);
+  }
 
-  const filteredWallpapers = useMemo(() => {
-    return MOCK_WALLPAPERS.filter((wp) => {
-      const matchesSearch = wp.title.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      let matchesCategory = true;
-      if (activeCategory === "Trending") {
-        matchesCategory = !!wp.isTrending;
-      } else if (activeCategory !== "For You") {
-        matchesCategory = wp.category === activeCategory;
-      }
+  // 6. Apply Dynamic Sorting Logic
+  switch (sort) {
+    case "trending":
+      query = query.order("likes", { ascending: false }).order("views", { ascending: false });
+      break;
+    case "views":
+      query = query.order("views", { ascending: false });
+      break;
+    case "downloads":
+      query = query.order("downloads", { ascending: false });
+      break;
+    case "latest":
+    default:
+      query = query.order("created_at", { ascending: false });
+      break;
+  }
 
-      return matchesSearch && matchesCategory;
-    });
-  }, [searchQuery, activeCategory]);
-
-  const trendingWallpapers = MOCK_WALLPAPERS.filter((wp) => wp.isTrending);
-  const showTrendingHero = activeCategory === "For You" && searchQuery.trim() === "";
+  // 7. Execute the database query
+  const { data: wallpapers, error } = await query;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 font-sans selection:bg-indigo-500/30 overflow-x-hidden">
+    <main className="min-h-screen bg-[#09090b] text-white px-6 pb-24 selection:bg-red-500/30 relative">
       
-      <Navbar 
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        activeCategory={activeCategory}
-        setActiveCategory={setActiveCategory}
-        categories={CATEGORIES}
-      />
+      {/* Top Navigation Bar for Auth */}
+      <nav className="absolute top-0 left-0 right-0 z-50 p-6 flex justify-end gap-4 max-w-[1800px] mx-auto">
+        <Link 
+          href="/login" 
+          className="px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 hover:text-white transition-colors"
+        >
+          Login
+        </Link>
+        <Link 
+          href="/signup" 
+          className="px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] bg-white text-black hover:bg-zinc-200 transition-colors shadow-xl shadow-white/5"
+        >
+          Join Legion
+        </Link>
+      </nav>
 
-      <main className={`${CONTAINER_MAX_WIDTH} ${CONTAINER_PADDING} py-6 sm:py-8 lg:py-12 pb-24 sm:pb-32`}>
+      {/* Modern, Compact Hero Section */}
+      <header className="max-w-[1800px] mx-auto pt-24 pb-12 flex flex-col items-center text-center animate-in fade-in slide-in-from-top-8 duration-1000">
         
-        {showTrendingHero && (
-          <section className="mb-12 sm:mb-16 lg:mb-24 animate-in fade-in duration-700 ease-out">
-            <div className="flex items-center gap-3 mb-6 sm:mb-8 lg:mb-10">
-              <FlameIcon />
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white">
-                Trending Now
-              </h2>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[2560px]:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
-              {trendingWallpapers.map((wp, i) => (
-                <div 
-                  key={`trending-${wp.slug}`} 
-                  className="w-full animate-in fade-in slide-in-from-bottom-4 ease-out"
-                  style={{ animationDuration: '600ms', animationDelay: `${i * 75}ms`, animationFillMode: 'backwards' }}
-                >
-                  <WallpaperCard {...wp} alt={`Trending Wallpaper showing ${wp.title}`} />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Scaled-down Logo with rounded corners */}
+        <div className="relative w-20 h-20 md:w-28 md:h-28 mb-6 drop-shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:scale-105 transition-transform duration-700 rounded-2xl overflow-hidden">
+          <Image
+            src="/logo.jpg" 
+            alt="Wallpaper Demons Logo"
+            fill
+            priority
+            className="object-cover"
+          />
+        </div>
 
-        <section>
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8 lg:mb-10">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl 2xl:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white">
-              {searchQuery ? `Search results for "${searchQuery}"` : (activeCategory === "For You" ? "Discover" : activeCategory)}
+        {/* Scaled-down Typography */}
+        <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter mb-3">
+          Wallpaper <span className="text-red-600">Demons</span>
+        </h1>
+        
+        <p className="text-zinc-500 font-bold uppercase tracking-[0.4em] text-[9px] md:text-[10px]">
+          Premium 8K Assets for the Elite
+        </p>
+      </header>
+
+      {/* Control Center: Search, Filter, Sort */}
+      <div className="max-w-[1800px] mx-auto mb-12">
+        {/* Note: Ensure the alias @/components/ works, or change to ../components/ if your tsconfig is still acting up */}
+        <FilterBar currentCategory={category} currentSort={sort} />
+      </div>
+
+      {/* Masonry Grid */}
+      <div className="max-w-[1800px] mx-auto">
+        {wallpapers && wallpapers.length > 0 ? (
+          <MasonryGrid wallpapers={wallpapers} />
+        ) : (
+          <div className="py-32 text-center border border-white/5 rounded-[2rem] bg-zinc-900/30 backdrop-blur-sm">
+            <h2 className="text-zinc-600 font-black uppercase italic text-2xl tracking-widest">
+              The Abyss is Empty
             </h2>
-            <span className="text-sm sm:text-base text-zinc-500 font-medium pb-1">
-              Showing {filteredWallpapers.length} {filteredWallpapers.length === 1 ? 'wallpaper' : 'wallpapers'}
-            </span>
+            <p className="text-zinc-500 text-xs mt-2 font-bold uppercase tracking-[0.2em]">
+              No assets match your search or filters.
+            </p>
           </div>
-          
-          {filteredWallpapers.length === 0 ? (
-            <div className="w-full py-24 flex flex-col items-center justify-center text-center px-4 animate-in fade-in zoom-in-95 duration-500 ease-out">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-200 dark:bg-zinc-800/50 rounded-full flex items-center justify-center text-zinc-400 mb-6 shadow-inner">
-                <SearchIcon />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-zinc-900 dark:text-white mb-3">No wallpapers found</h3>
-              <p className="text-zinc-500 dark:text-zinc-400 max-w-md text-sm sm:text-base leading-relaxed">
-                We couldn&apos;t find anything matching your current filters. Try searching for something else or changing categories.
-              </p>
-              <button 
-                onClick={() => {
-                  setSearchQuery("");
-                  setActiveCategory("For You");
-                }}
-                className="mt-8 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition-colors shadow-lg shadow-indigo-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              >
-                Clear all filters
-              </button>
-            </div>
-          ) : (
-            <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 2xl:columns-6 min-[1920px]:columns-7 min-[2560px]:columns-8 gap-4 sm:gap-6 lg:gap-8 space-y-4 sm:space-y-6 lg:space-y-8">
-              {filteredWallpapers.map((wp, i) => (
-                <div 
-                  key={wp.slug} 
-                  className="animate-in fade-in slide-in-from-bottom-8 ease-out"
-                  style={{ animationDuration: '700ms', animationDelay: `${i * 40}ms`, animationFillMode: 'backwards' }}
-                >
-                  <WallpaperCard {...wp} alt={`Wallpaper showing ${wp.title}`} />
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
+        )}
+      </div>
+    </main>
   );
 }

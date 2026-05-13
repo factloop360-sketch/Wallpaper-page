@@ -2,15 +2,17 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState } from "react";
-import LoginModal from "./LoginModal"; // Import our new modal!
+import React, { useState, useEffect } from "react";
+import { createClient } from "@/utils/supabase/client";
+import LoginModal from "./LoginModal";
 
 export interface WallpaperCardProps {
+  id: string;
   slug: string;
   src: string;
   title: string;
   author: string;
-  likes: string;
+  likes: number;
   resolution: string;
   width?: number;
   height?: number;
@@ -32,6 +34,7 @@ const DownloadIcon = () => (
 );
 
 export default function WallpaperCard({
+  id,
   slug,
   src,
   title,
@@ -43,22 +46,76 @@ export default function WallpaperCard({
   alt,
 }: WallpaperCardProps) {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [currentLikes, setCurrentLikes] = useState(likes);
   const [isLiked, setIsLiked] = useState(false);
-  
-  // Modal & Auth State
+  const [isLoadingLike, setIsLoadingLike] = useState(false);
+  const supabase = createClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Protected Download Handler
+  useEffect(() => {
+    const likedWallpapers = JSON.parse(localStorage.getItem("liked_souls") || "[]");
+    if (likedWallpapers.includes(id)) {
+      setIsLiked(true);
+    }
+  }, [id]);
+
   const handleDownloadClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Stop the link from opening
-    e.stopPropagation(); // Stop the click from bubbling up
-    
+    e.preventDefault(); 
+    e.stopPropagation(); 
     if (!isLoggedIn) {
       setIsModalOpen(true);
     } else {
       alert(`Downloading high-resolution file for: ${title}`);
+      window.open(src, "_blank");
     }
+  };
+
+  const handleLikeToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Only block if currently loading
+    if (isLoadingLike) return;
+
+    setIsLoadingLike(true);
+    const likedWallpapers = JSON.parse(localStorage.getItem("liked_souls") || "[]");
+
+    if (isLiked) {
+      // --- UNLIKE LOGIC ---
+      setCurrentLikes((prev) => Math.max(prev - 1, 0));
+      setIsLiked(false);
+
+      const updatedLikes = likedWallpapers.filter((likedId: string) => likedId !== id);
+      localStorage.setItem("liked_souls", JSON.stringify(updatedLikes));
+
+      const { error } = await supabase.rpc("decrement_likes", { row_id: id });
+
+      if (error) {
+        console.error("Failed to release soul:", error);
+        setCurrentLikes((prev) => prev + 1);
+        setIsLiked(true);
+        localStorage.setItem("liked_souls", JSON.stringify([...updatedLikes, id]));
+      }
+    } else {
+      // --- LIKE LOGIC ---
+      setCurrentLikes((prev) => prev + 1);
+      setIsLiked(true);
+
+      localStorage.setItem("liked_souls", JSON.stringify([...likedWallpapers, id]));
+
+      const { error } = await supabase.rpc("increment_likes", { row_id: id });
+
+      if (error) {
+        console.error("Failed to siphon soul:", error);
+        setCurrentLikes((prev) => Math.max(prev - 1, 0));
+        setIsLiked(false);
+        const revertedLikes = likedWallpapers.filter((likedId: string) => likedId !== id);
+        localStorage.setItem("liked_souls", JSON.stringify(revertedLikes));
+      }
+    }
+    
+    setIsLoadingLike(false);
   };
 
   return (
@@ -70,10 +127,11 @@ export default function WallpaperCard({
         }`}
       >
         <Image
-          src={src}
+          src={`${src}?width=500&quality=70`}
           alt={alt || title}
           width={width}
           height={height}
+          unoptimized 
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           style={{ width: "100%", height: "auto" }}
           onLoad={() => setIsLoaded(true)}
@@ -94,17 +152,14 @@ export default function WallpaperCard({
               {resolution}
             </span>
             <button 
-              className={`p-2.5 backdrop-blur-md rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 hover:scale-110 active:scale-75 ${
+              className={`p-2.5 backdrop-blur-md rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 hover:scale-110 active:scale-75 disabled:opacity-50 disabled:hover:scale-100 ${
                 isLiked 
                   ? "bg-pink-500/20 text-pink-500 border border-pink-500/50" 
                   : "bg-black/40 text-white hover:bg-black/60 hover:text-pink-400 border border-transparent"
               }`}
               aria-label={isLiked ? `Unlike ${title}` : `Like ${title}`}
-              onClick={(e) => {
-                e.preventDefault(); 
-                e.stopPropagation(); 
-                setIsLiked(!isLiked);
-              }}
+              disabled={isLoadingLike} // FIXED: Removed the isLiked trap!
+              onClick={handleLikeToggle}
             >
               <HeartIcon filled={isLiked} />
             </button>
@@ -113,12 +168,12 @@ export default function WallpaperCard({
           <div className="flex items-end justify-between gap-3 translate-y-[10px] group-hover:translate-y-0 group-focus-visible:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]">
             <div>
               <h3 className="text-white font-medium text-base sm:text-lg leading-tight line-clamp-1 drop-shadow-md">{title}</h3>
-              <p className="text-zinc-300 text-xs mt-1 drop-shadow-md">{author} • {likes} likes</p>
+              <p className="text-zinc-300 text-xs mt-1 drop-shadow-md">{author} • {currentLikes} likes</p>
             </div>
             <button 
               className="p-2.5 bg-white text-black hover:bg-zinc-200 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 flex-shrink-0 scale-95 hover:scale-105 active:scale-90"
               aria-label={`Download ${title}`}
-              onClick={handleDownloadClick} // Trigger the protected flow!
+              onClick={handleDownloadClick} 
             >
               <DownloadIcon />
             </button>
@@ -126,24 +181,18 @@ export default function WallpaperCard({
         </div>
       </Link>
 
-      {/* The LoginModal is placed OUTSIDE the <Link> tag.
-        This ensures that clicking the modal doesn't accidentally trigger a route change!
-      */}
       <LoginModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onLogin={() => {
           setIsLoggedIn(true);
           setIsModalOpen(false);
-          setTimeout(() => alert(`Successfully logged in! Downloading: ${title}`), 400);
+          setTimeout(() => {
+            alert(`Successfully logged in! Downloading: ${title}`);
+            window.open(src, "_blank");
+          }, 400);
         }} 
       />
     </>
-  );
-}
-
-export function WallpaperCardSkeleton() {
-  return (
-    <div className="w-full aspect-[4/5] bg-zinc-200 dark:bg-zinc-800/50 animate-pulse rounded-2xl break-inside-avoid" />
   );
 }
