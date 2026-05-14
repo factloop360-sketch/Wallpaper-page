@@ -12,7 +12,7 @@ export default function SignupPage() {
       provider: "google",
       options: {
         // Ensure this matches your Supabase & Google Cloud redirect settings
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/auth-success`,
       },
     });
 
