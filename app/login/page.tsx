@@ -10,7 +10,7 @@ export default function LoginPage() {
       provider: 'google',
       options: {
         // This MUST match your Google Cloud and Supabase Redirect settings
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: window.location.origin,
       },
     });
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 // @ts-ignore: Allow importing global CSS without type declarations.
 import "./globals.css";
+import { AuthProvider } from "@/components/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -45,7 +46,9 @@ export default function RootLayout({
         to every single page on your site automatically. 
       */}
       <body className={`${inter.className} bg-[#09090b] text-white antialiased selection:bg-red-500/30`}>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

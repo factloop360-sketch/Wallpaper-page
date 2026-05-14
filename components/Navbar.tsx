@@ -3,6 +3,9 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useAuth } from "@/components/AuthProvider";
+import { createBrowserClient } from "@supabase/ssr";
+import { useRouter } from "next/navigation";
 
 interface NavbarProps {
   searchQuery: string;
@@ -19,6 +22,20 @@ export default function Navbar({
   setActiveCategory,
   categories,
 }: NavbarProps) {
+  // Bring in the new isLoading state to prevent UI flashing
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+  };
+
   const navItems = ["Home", "Trending", ...categories.filter(c => c !== "Home" && c !== "Trending")];
 
   return (
@@ -56,14 +73,35 @@ export default function Navbar({
             />
           </div>
 
+          {/* DYNAMIC AUTH SECTION */}
           <div className="flex items-center gap-6">
-            <Link href="/login" className="text-[11px] font-black uppercase tracking-widest text-zinc-500 hover:text-white">
-              Log In
-            </Link>
-            <Link href="/signup" className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-red-700">
-              Sign Up
-            </Link>
+            {isLoading ? (
+              // Show a subtle loading state while checking session to prevent flickering
+              <div className="w-24 h-8 bg-white/5 animate-pulse rounded-xl"></div>
+            ) : user ? (
+              <>
+                <span className="text-[11px] font-bold tracking-widest text-zinc-400 hidden sm:block">
+                  {user.email?.split('@')[0]}
+                </span>
+                <button 
+                  onClick={handleLogout}
+                  className="bg-white/5 text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-red-600/20 hover:text-red-500 transition-colors border border-white/5"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="text-[11px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
+                  Log In
+                </Link>
+                <Link href="/signup" className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors">
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
+
         </div>
 
         <div className="flex items-center gap-2 pb-4 overflow-x-auto no-scrollbar">
