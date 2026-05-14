@@ -2,10 +2,10 @@
 
 import React from "react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client";
+import { supabase } from "@/utils/supabase/client";
 
 export default function SignupPage() {
-  const supabase = createClient();
+  // const supabase = createClient();
 
   const handleGoogleSignup = async () => {
     const { error } = await supabase.auth.signInWithOAuth({

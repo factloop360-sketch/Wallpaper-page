@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { supabase } from "@/utils/supabase/client";
 
 interface LikeButtonProps {
   wallpaperId: string;
@@ -12,7 +12,7 @@ export default function LikeButton({ wallpaperId, initialLikes }: LikeButtonProp
   const [likes, setLikes] = useState(initialLikes);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = createClient();
+ // const supabase = createClient();
 
   useEffect(() => {
     const likedWallpapers = JSON.parse(localStorage.getItem("liked_souls") || "[]");

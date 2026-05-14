@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { supabase } from "@/utils/supabase/client";
 
 interface DownloadHandlerProps {
   wallpaperId: string;
@@ -11,7 +11,7 @@ interface DownloadHandlerProps {
 
 export default function DownloadHandler({ wallpaperId, imageUrl, title }: DownloadHandlerProps) {
   const [isDownloading, setIsDownloading] = useState(false);
-  const supabase = createClient();
+ // const supabase = createClient();
 
   const handleDownload = async () => {
     try {

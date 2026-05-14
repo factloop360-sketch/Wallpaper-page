@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { createClient } from "@/utils/supabase/client";
+import { supabase } from "@/utils/supabase/client";
 import { CATEGORIES } from "@/lib/wallpapers";
 
 type DeviceRatio = "phone" | "pc" | "ultrawide" | "tv";
@@ -54,7 +54,7 @@ const EditIcon = () => (
 );
 
 export default function AdminCommandCenter() {
-  const supabase = createClient();
+ // const supabase = createClient();
   const router = useRouter();
   
   // --- Core State ---
