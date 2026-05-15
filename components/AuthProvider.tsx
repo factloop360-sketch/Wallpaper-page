@@ -21,12 +21,15 @@ export function AuthProvider({
 }: {
   children: React.ReactNode
 }) {
+
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+
     const initializeSession = async () => {
+
       const {
         data: { session },
       } = await supabase.auth.getSession()
@@ -51,18 +54,22 @@ export function AuthProvider({
       setUser(currentSession?.user ?? null)
       setIsLoading(false)
 
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        window.location.reload()
-      }
     })
 
     return () => {
       subscription.unsubscribe()
     }
+
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
