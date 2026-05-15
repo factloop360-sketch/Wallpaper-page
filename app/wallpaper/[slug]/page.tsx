@@ -13,7 +13,6 @@ interface WallpaperPageProps {
   }>;
 }
 
-// --- DYNAMIC SEO METADATA ---
 export async function generateMetadata(
   { params }: WallpaperPageProps,
   parent: ResolvingMetadata
@@ -52,11 +51,13 @@ export async function generateMetadata(
   };
 }
 
-// --- MAIN PAGE COMPONENT ---
 export default async function WallpaperPage({ params }: WallpaperPageProps) {
   const resolvedParams = await params;
   const { slug } = resolvedParams;
   const supabase = await createClient();
+
+  // Fetch Auth context inside Server Component to control the Watermark render state
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: wallpaper, error } = await supabase
     .from("wallpapers")
@@ -71,12 +72,30 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
   await supabase.rpc('increment_views', { row_id: wallpaper.id });
   const optimizedPreviewUrl = `${wallpaper.image_url}?width=1600&format=webp&quality=85`;
 
+  // Fix: Use .ilike for Related query mapping
   const { data: related } = await supabase
     .from("wallpapers")
     .select("*")
     .ilike("category", wallpaper.category)
     .neq("id", wallpaper.id)
     .limit(4);
+
+  // Dynamic Toggle Evaluations
+  const applyWatermark = wallpaper.has_watermark && !user;
+  
+  // Verify ownership criteria if asset is locked down as a Premium item
+ // let hasPurchased = false;
+ let hasPurchased = false;
+  if (wallpaper.is_premium && user) {
+    const { data: order } = await supabase
+      .from("purchases")
+      .select("id") // We only need the ID to check existence
+      .eq("user_id", user.id)
+      .eq("wallpaper_id", wallpaper.id)
+      .maybeSingle(); // Tells Supabase to look for 1 or 0 items safely without crashing
+    
+    if (order) hasPurchased = true;
+  }
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-red-500/30 pb-24 relative overflow-hidden">
@@ -92,7 +111,22 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-[#09090b]/40 via-[#09090b]/80 to-[#09090b]"></div>
       </div>
 
-      {/* Main Content Area (Nav removed, relies on global Navbar) */}
+      {/* Dedicated back nav item */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        <div className="max-w-[1800px] mx-auto px-6 h-20 flex items-center">
+          <Link 
+            href="/" 
+            className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-zinc-500 hover:text-white transition-all group active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span className="group-hover:translate-x-1 transition-transform">Back to the Legion</span>
+          </Link>
+        </div>
+      </nav>
+
       <main className="relative z-10 max-w-[1800px] mx-auto px-6 pt-[120px] py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 animate-in fade-in slide-in-from-bottom-8 duration-1000 ease-out">
           
@@ -105,8 +139,19 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                 priority
                 unoptimized 
                 sizes="(max-width: 1024px) 100vw, 66vw"
-                className="object-contain transition-transform duration-[1500ms] ease-out group-hover:scale-105"
+                className="object-contain transition-transform duration-[1500ms] ease-out group-hover:scale-102"
               />
+
+              {/* HARDWARE-ACCELERATED WATERMARK OVERLAY */}
+              {applyWatermark && (
+                <div className="absolute inset-0 z-20 pointer-events-none select-none flex flex-col items-center justify-center bg-black/10 overflow-hidden">
+                  <div className="w-[150%] h-[150%] flex flex-col justify-center items-center gap-24 opacity-[0.04] text-white font-black tracking-[0.6em] text-2xl md:text-4xl uppercase select-none rotate-[-25deg] mix-blend-screen">
+                    <div>WALLPAPER DEMONS • PREVIEW MODE</div>
+                    <div>WALLPAPER DEMONS • PREVIEW MODE</div>
+                    <div>WALLPAPER DEMONS • PREVIEW MODE</div>
+                  </div>
+                </div>
+              )}
             </div>
             
             {wallpaper.description && (
@@ -122,9 +167,16 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
 
           <div className="lg:col-span-4 flex flex-col justify-center">
             <div className="mb-10">
-              <span className="text-red-500 font-black uppercase tracking-[0.5em] text-[10px] mb-4 block drop-shadow-[0_0_10px_rgba(220,38,38,0.5)]">
-                {wallpaper.category || "Elite Asset"}
-              </span>
+              <div className="flex gap-2 mb-4">
+                <span className="text-red-500 font-black uppercase tracking-[0.5em] text-[10px] block drop-shadow-[0_0_10px_rgba(220,38,38,0.5)]">
+                  {wallpaper.category || "Elite Asset"}
+                </span>
+                {wallpaper.is_premium && (
+                  <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">
+                    PREMIUM
+                  </span>
+                )}
+              </div>
               <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter leading-[0.9] mb-4 drop-shadow-2xl">
                 {wallpaper.title}
               </h1>
@@ -136,27 +188,32 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
             </div>
 
             <div className="flex flex-col gap-4 mb-12">
-              <ProtectedDownloadButton 
-                title={wallpaper.title} 
-                url={wallpaper.image_url} 
-              />
+              {wallpaper.is_premium && !hasPurchased ? (
+                <button className="w-full py-4 rounded-xl bg-gradient-to-r from-yellow-600 to-amber-500 text-black text-center text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+                  Unlock Premium Asset ($1.99)
+                </button>
+              ) : (
+                <ProtectedDownloadButton 
+                  title={wallpaper.title} 
+                  url={wallpaper.image_url} 
+                />
+              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <LikeButton wallpaperId={wallpaper.id} initialLikes={wallpaper.likes || 0} />
-                <div className="flex items-center justify-center bg-white/5 border border-white/10 hover:border-white/20 transition-colors rounded-2xl text-[11px] font-black uppercase tracking-widest text-zinc-400">
+                <div className="flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-zinc-400">
                   {wallpaper.resolution?.split(' ')[0] || "ULTRA"}
                 </div>
               </div>
             </div>
 
-            {/* View/Download Stats */}
             <div className="grid grid-cols-2 gap-4 p-8 rounded-[2rem] bg-zinc-900/40 border border-white/5 backdrop-blur-md shadow-2xl">
               <div className="text-center group">
-                <p className="text-zinc-500 text-[9px] uppercase font-black tracking-[0.2em] mb-2 group-hover:text-zinc-400 transition-colors">Total Views</p>
+                <p className="text-zinc-500 text-[9px] uppercase font-black tracking-[0.2em] mb-2">Total Views</p>
                 <p className="text-white font-black italic text-3xl">{(wallpaper.views || 0) + 1}</p>
               </div>
               <div className="text-center border-l border-white/5 group">
-                <p className="text-zinc-500 text-[9px] uppercase font-black tracking-[0.2em] mb-2 group-hover:text-zinc-400 transition-colors">Siphoned</p>
+                <p className="text-zinc-500 text-[9px] uppercase font-black tracking-[0.2em] mb-2">Siphoned</p>
                 <p className="text-white font-black italic text-3xl">{wallpaper.downloads || 0}</p>
               </div>
             </div>
@@ -166,7 +223,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">Soul Tags</h3>
                 <div className="flex flex-wrap gap-2">
                   {wallpaper.tags.map((tag: string) => (
-                    <span key={tag} className="px-4 py-2 bg-zinc-900/50 border border-white/5 rounded-xl text-[10px] font-bold text-zinc-400 uppercase tracking-widest cursor-default hover:bg-white/10 hover:text-white transition-all">
+                    <span key={tag} className="px-4 py-2 bg-zinc-900/50 border border-white/5 rounded-xl text-[10px] font-bold text-zinc-400 uppercase tracking-widest cursor-default">
                       {tag}
                     </span>
                   ))}
@@ -179,8 +236,8 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
         {/* RELATED WALLPAPERS SECTION */}
         {related && related.length > 0 && (
           <div className="mt-32 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-300">
-            <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-12 border-b border-white/10 pb-4 flex items-center gap-3">
-              Other Legion Members
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-12 border-b border-white/10 pb-4">
+              Other Related Members
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {related.map((wp) => (

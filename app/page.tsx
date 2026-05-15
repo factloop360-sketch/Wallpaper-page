@@ -1,8 +1,8 @@
 import React, { Suspense } from "react";
 import { createClient } from "@/utils/supabase/server";
 import MasonryGrid from "@/components/MasonryGrid";
+import Navbar from "@/components/Navbar";
 
-// --- Types ---
 interface HomeProps {
   searchParams: Promise<{
     category?: string;
@@ -23,6 +23,8 @@ interface Wallpaper {
   downloads: number;
   author: string;
   created_at: string;
+  is_premium?: boolean;
+  has_watermark?: boolean;
 }
 
 export default async function Home({ searchParams }: HomeProps) {
@@ -32,10 +34,11 @@ export default async function Home({ searchParams }: HomeProps) {
   const search = params.q || "";
 
   return (
-    // Luxury cinematic background, pushed down to clear your fixed Navbar
     <main className="min-h-screen bg-[#09090b] text-white px-6 pb-24 pt-[140px] selection:bg-red-500/30 relative overflow-hidden">
       
-      {/* Subtle red background glow effect */}
+      {/* Navbar is self-contained explicitly on the Home view */}
+      <Navbar />
+      
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-red-600/5 blur-[150px] pointer-events-none rounded-full"></div>
 
       <div className="max-w-[2560px] mx-auto relative z-10">
@@ -47,18 +50,13 @@ export default async function Home({ searchParams }: HomeProps) {
   );
 }
 
-// --- Data Fetching & Layout Component ---
 async function DynamicContent({ category, sort, search }: { category: string, sort: string, search: string }) {
   const supabase = await createClient();
   let query = supabase.from("wallpapers").select("*");
 
-  // Apply search query
   if (search) query = query.ilike("title", `%${search}%`);
-  
-  // FIX: Use .ilike instead of .eq so "Anime" and "anime" both work flawlessly
   if (category !== "all") query = query.ilike("category", category);
 
-  // Apply sort parameters
   switch (sort) {
     case "trending":
       query = query.order("likes", { ascending: false }).order("views", { ascending: false });
@@ -83,7 +81,6 @@ async function DynamicContent({ category, sort, search }: { category: string, so
   const { data: wallpapers, error } = await query;
   let finalWallpapers = (wallpapers as Wallpaper[]) || [];
 
-  // Shuffle the grid if we are on the Home (random) view
   if (sort === "random") {
     finalWallpapers = finalWallpapers.sort(() => Math.random() - 0.5);
   }
@@ -91,15 +88,12 @@ async function DynamicContent({ category, sort, search }: { category: string, so
   if (error || finalWallpapers.length === 0) {
     return (
       <div className="py-40 text-center border border-white/5 rounded-[2rem] bg-zinc-900/20 backdrop-blur-md animate-in fade-in slide-in-from-bottom-8 duration-1000">
-        <h2 className="text-zinc-500 font-black uppercase italic text-3xl tracking-[0.2em] drop-shadow-xl">The Abyss is Empty</h2>
-        <p className="text-zinc-600 text-xs mt-4 font-bold uppercase tracking-[0.3em]">
-          {sort === "latest" ? "No new assets forged today." : "No assets match your filters."}
-        </p>
+        <h2 className="text-zinc-500 font-black uppercase italic text-3xl tracking-[0.2em]">The Abyss is Empty</h2>
+        <p className="text-zinc-600 text-xs mt-4 font-bold uppercase tracking-[0.3em]">No assets match your filters.</p>
       </div>
     );
   }
 
-  // Render unified masonry grid with smooth entry animation
   return (
     <div className="animate-in fade-in slide-in-from-bottom-12 duration-[1500ms] ease-out">
       <MasonryGrid wallpapers={finalWallpapers} />
@@ -107,7 +101,6 @@ async function DynamicContent({ category, sort, search }: { category: string, so
   );
 }
 
-// --- Premium Loading State Skeleton ---
 function GridSkeleton() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full animate-pulse">

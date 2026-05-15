@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 // @ts-ignore
-import "./globals.css";
+import "@ /globals.css"; 
 import { AuthProvider } from "@/components/AuthProvider";
-import Navbar from "@/components/Navbar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,9 +23,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className={`${inter.className} bg-[#09090b] text-white antialiased selection:bg-red-500/30`}>
-        {/* Wrap the app in your AuthProvider to bring the Login/Logout buttons back to life */}
         <AuthProvider>
-          <Navbar />
+          {/* Navbar is removed from here to prevent cross-page suspending */}
           {children}
         </AuthProvider>
       </body>

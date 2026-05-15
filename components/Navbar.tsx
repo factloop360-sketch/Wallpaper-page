@@ -4,20 +4,15 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/components/AuthProvider";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from '@/utils/supabase/client';
 
 const DEFAULT_CATEGORIES = ["Abstract", "Anime", "Dark", "Nature", "Cars", "Space", "Gaming"];
 
-// --- 1. The Core Navbar Logic ---
 function NavbarContent({ categories }: { categories: string[] }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pathname = usePathname();
-
-  // Check if we are on the Wallpaper Detail Page
-  const isDetailView = pathname?.startsWith("/wallpaper/");
 
   const currentCategoryParam = searchParams.get("category");
   const currentSortParam = searchParams.get("sort");
@@ -70,27 +65,6 @@ function NavbarContent({ categories }: { categories: string[] }) {
 
   const navItems = ["Home", "Trending", "Latest", ...categories.filter(c => !["Home", "Trending", "Latest"].includes(c))];
 
-  // --- SCENARIO A: The slim "Back" Navbar for Detail Pages ---
-  if (isDetailView) {
-    return (
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all">
-        <div className="max-w-[2560px] mx-auto px-6 h-20 flex items-center">
-          <Link 
-            href="/" 
-            className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-zinc-500 hover:text-white transition-all group active:scale-95"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            <span className="group-hover:translate-x-1 transition-transform">Back to the Legion</span>
-          </Link>
-        </div>
-      </nav>
-    );
-  }
-
-  // --- SCENARIO B: The Full Main Navigation ---
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300">
       <div className="max-w-[2560px] mx-auto px-6">
@@ -163,10 +137,8 @@ function NavbarContent({ categories }: { categories: string[] }) {
   );
 }
 
-// --- 2. The Suspense Wrapper (Fixes the Bug) ---
 export default function Navbar({ categories = DEFAULT_CATEGORIES }: { categories?: string[] }) {
   return (
-    // If Next.js is thinking, it shows this invisible blank block to prevent layout shift, preventing the crash
     <Suspense fallback={<div className="fixed top-0 left-0 right-0 z-50 h-20 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5" />}>
       <NavbarContent categories={categories} />
     </Suspense>
