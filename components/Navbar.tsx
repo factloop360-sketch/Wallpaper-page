@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from '@/utils/supabase/client';
 
+
 const DEFAULT_CATEGORIES = ["Abstract", "Anime", "Dark", "Nature", "Cars", "Space", "Gaming"];
 
 function NavbarContent({ categories }: { categories: string[] }) {
