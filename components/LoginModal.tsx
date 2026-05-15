@@ -5,6 +5,7 @@ import { signInWithGoogle } from "@/lib/auth";
 
 interface LoginModalProps {
   isOpen: boolean;
+  onLogin?: () => void;
   onClose: () => void;
 }
 

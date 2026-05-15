@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enables the "use server" feature for your Navbar logout function
+  experimental: {
+    serverActions: true,
+  },
   images: {
     remotePatterns: [
       {

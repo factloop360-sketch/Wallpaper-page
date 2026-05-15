@@ -5,15 +5,12 @@ import Link from "next/link";
 import { supabase } from "@/utils/supabase/client";
 
 export default function SignupPage() {
-  // const supabase = createClient();
-
   const handleGoogleSignup = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Ensure this matches your Supabase & Google Cloud redirect settings
-       // redirectTo: `${window.location.origin}/auth-success`,
-       redirectTo: "https://wallpaper-demons.vercel.app/auth-success",
+        // Dynamically detects if you are on localhost or vercel
+        redirectTo: `${window.location.origin}/auth-success`,
       },
     });
 
@@ -24,8 +21,12 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-8 text-center">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      
+      {/* Cinematic Ambient Background Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-red-600/10 blur-[150px] pointer-events-none rounded-full"></div>
+
+      <div className="relative z-10 w-full max-w-md space-y-8 text-center animate-in fade-in zoom-in-95 duration-1000 ease-out">
         {/* Branding */}
         <div className="space-y-2">
           <h1 className="text-5xl font-black italic uppercase tracking-tighter">
@@ -37,14 +38,14 @@ export default function SignupPage() {
         </div>
 
         {/* Action Card */}
-        <div className="bg-zinc-900/40 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl backdrop-blur-md">
+        <div className="bg-zinc-900/40 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl backdrop-blur-xl">
           <p className="text-zinc-400 mb-8 text-sm leading-relaxed">
             Create your account to start siphoning high-resolution souls for your setup.
           </p>
           
           <button 
             onClick={handleGoogleSignup}
-            className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-zinc-200 transition-all active:scale-95 flex items-center justify-center gap-3"
+            className="w-full bg-white text-black py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-all active:scale-95 flex items-center justify-center gap-3"
           >
             {/* Google Icon SVG */}
             <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -57,14 +58,14 @@ export default function SignupPage() {
           </button>
         </div>
 
-        {/* Footer Link */}
+        {/* Footer Links */}
         <div className="flex flex-col gap-6 pt-4">
           <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
-            Already a member? <Link href="/login" className="text-white hover:text-red-600 transition-colors">Login Here</Link>
+            Already a member? <Link href="/login" className="text-white hover:text-red-500 transition-colors border-b border-red-500/30 pb-0.5">Login Here</Link>
           </p>
           
-          <Link href="/" className="text-zinc-600 hover:text-white text-[10px] font-black uppercase tracking-[0.4em] transition-colors">
-            ← Return to the Abyss
+          <Link href="/" className="text-zinc-600 hover:text-white text-[10px] font-black uppercase tracking-[0.4em] transition-colors group">
+            <span className="group-hover:-translate-x-1 inline-block transition-transform">←</span> Return to the Abyss
           </Link>
         </div>
       </div>
