@@ -1,18 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/components/AuthProvider";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { supabase } from '@/utils/supabase/client';
 
 const DEFAULT_CATEGORIES = ["Abstract", "Anime", "Dark", "Nature", "Cars", "Space", "Gaming"];
 
-export default function Navbar({ categories = DEFAULT_CATEGORIES }: { categories?: string[] }) {
+// --- 1. The Core Navbar Logic ---
+function NavbarContent({ categories }: { categories: string[] }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // Check if we are on the Wallpaper Detail Page
+  const isDetailView = pathname?.startsWith("/wallpaper/");
 
   const currentCategoryParam = searchParams.get("category");
   const currentSortParam = searchParams.get("sort");
@@ -65,8 +70,28 @@ export default function Navbar({ categories = DEFAULT_CATEGORIES }: { categories
 
   const navItems = ["Home", "Trending", "Latest", ...categories.filter(c => !["Home", "Trending", "Latest"].includes(c))];
 
+  // --- SCENARIO A: The slim "Back" Navbar for Detail Pages ---
+  if (isDetailView) {
+    return (
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all">
+        <div className="max-w-[2560px] mx-auto px-6 h-20 flex items-center">
+          <Link 
+            href="/" 
+            className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-zinc-500 hover:text-white transition-all group active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span className="group-hover:translate-x-1 transition-transform">Back to the Legion</span>
+          </Link>
+        </div>
+      </nav>
+    );
+  }
+
+  // --- SCENARIO B: The Full Main Navigation ---
   return (
-    // UPGRADE: fixed positioning, deeper blur (backdrop-blur-2xl), and a smoother gradient border
     <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300">
       <div className="max-w-[2560px] mx-auto px-6">
         <div className="flex items-center justify-between h-20 gap-8">
@@ -92,7 +117,6 @@ export default function Navbar({ categories = DEFAULT_CATEGORIES }: { categories
                 placeholder="Search the legion... (Press Enter)"
                 value={localSearchQuery}
                 onChange={(e) => setLocalSearchQuery(e.target.value)}
-                // UPGRADE: Smooth focus ring and input transitions
                 className="w-full bg-zinc-900/40 border border-white/10 py-3 px-6 rounded-2xl text-sm focus:ring-2 focus:ring-red-600/50 focus:border-transparent focus:bg-zinc-900/80 outline-none text-white transition-all placeholder:text-zinc-600"
               />
             </div>
@@ -136,5 +160,15 @@ export default function Navbar({ categories = DEFAULT_CATEGORIES }: { categories
         </div>
       </div>
     </nav>
+  );
+}
+
+// --- 2. The Suspense Wrapper (Fixes the Bug) ---
+export default function Navbar({ categories = DEFAULT_CATEGORIES }: { categories?: string[] }) {
+  return (
+    // If Next.js is thinking, it shows this invisible blank block to prevent layout shift, preventing the crash
+    <Suspense fallback={<div className="fixed top-0 left-0 right-0 z-50 h-20 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5" />}>
+      <NavbarContent categories={categories} />
+    </Suspense>
   );
 }

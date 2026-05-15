@@ -68,13 +68,9 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
     notFound();
   }
 
-  // Increment views on load via Postgres Function
   await supabase.rpc('increment_views', { row_id: wallpaper.id });
-
-  // Fast loading preview URL for the main image
   const optimizedPreviewUrl = `${wallpaper.image_url}?width=1600&format=webp&quality=85`;
 
-  // UPGRADE: Fetch Related Wallpapers using case-insensitive (.ilike) matching
   const { data: related } = await supabase
     .from("wallpapers")
     .select("*")
@@ -85,7 +81,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-red-500/30 pb-24 relative overflow-hidden">
       
-      {/* UPGRADE: Cinematic Ambient Background Glow */}
+      {/* Cinematic Ambient Background Glow */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <Image 
           src={optimizedPreviewUrl} 
@@ -96,23 +92,8 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-[#09090b]/40 via-[#09090b]/80 to-[#09090b]"></div>
       </div>
 
-      <nav className="sticky top-0 z-50 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all">
-        <div className="max-w-[1800px] mx-auto px-6 h-20 flex items-center">
-          <Link 
-            href="/" 
-            className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-zinc-500 hover:text-white transition-all group active:scale-95"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            <span className="group-hover:translate-x-1 transition-transform">Back to the Legion</span>
-          </Link>
-        </div>
-      </nav>
-
-      {/* Wrapping main content in relative z-10 to sit above the background glow */}
-      <main className="relative z-10 max-w-[1800px] mx-auto px-6 py-12">
+      {/* Main Content Area (Nav removed, relies on global Navbar) */}
+      <main className="relative z-10 max-w-[1800px] mx-auto px-6 pt-[120px] py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 animate-in fade-in slide-in-from-bottom-8 duration-1000 ease-out">
           
           <div className="lg:col-span-8 flex flex-col gap-6">
