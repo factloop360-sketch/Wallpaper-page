@@ -21,13 +21,13 @@ export interface WallpaperCardProps {
 }
 
 const HeartIcon = ({ filled }: { filled?: boolean }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-all duration-300">
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
   </svg>
 );
 
 const DownloadIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
     <polyline points="7 10 12 15 17 10"></polyline>
     <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -63,7 +63,7 @@ export default function WallpaperCard({
     }
   }, [id]);
 
-  const handleDownloadClick = (e: React.MouseEvent) => {
+  const handleDownloadClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -72,7 +72,26 @@ export default function WallpaperCard({
       return;
     }
 
-    window.open(src, "_blank");
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${title.replace(/\s+/g, "-").toLowerCase()}.jpg`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Failed to download wallpaper.");
+    }
   };
 
   const handleLikeToggle = async (e: React.MouseEvent) => {
@@ -97,19 +116,10 @@ export default function WallpaperCard({
 
       localStorage.setItem("liked_souls", JSON.stringify(updatedLikes));
 
-      const { error } = await supabase.rpc("decrement_likes", {
+      await supabase.rpc("decrement_likes", {
         row_id: id,
       });
 
-      if (error) {
-        setCurrentLikes((prev) => prev + 1);
-        setIsLiked(true);
-
-        localStorage.setItem(
-          "liked_souls",
-          JSON.stringify([...updatedLikes, id])
-        );
-      }
     } else {
       setCurrentLikes((prev) => prev + 1);
       setIsLiked(true);
@@ -119,23 +129,9 @@ export default function WallpaperCard({
         JSON.stringify([...likedWallpapers, id])
       );
 
-      const { error } = await supabase.rpc("increment_likes", {
+      await supabase.rpc("increment_likes", {
         row_id: id,
       });
-
-      if (error) {
-        setCurrentLikes((prev) => Math.max(prev - 1, 0));
-        setIsLiked(false);
-
-        const revertedLikes = likedWallpapers.filter(
-          (likedId: string) => likedId !== id
-        );
-
-        localStorage.setItem(
-          "liked_souls",
-          JSON.stringify(revertedLikes)
-        );
-      }
     }
 
     setIsLoadingLike(false);
@@ -145,11 +141,7 @@ export default function WallpaperCard({
     <>
       <Link
         href={`/wallpaper/${slug}`}
-        className={`group relative block break-inside-avoid rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 ${
-          !isLoaded
-            ? "bg-zinc-200 dark:bg-zinc-800 animate-pulse"
-            : "bg-zinc-100 dark:bg-zinc-900"
-        }`}
+        className="group relative block break-inside-avoid rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500"
       >
         <Image
           src={`${src}?width=500&quality=70`}
@@ -157,17 +149,10 @@ export default function WallpaperCard({
           width={width}
           height={height}
           unoptimized
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          style={{ width: "100%", height: "auto" }}
-          onLoad={() => setIsLoaded(true)}
-          className={`transition-all duration-700 ${
-            isLoaded
-              ? "opacity-100 blur-0 scale-100"
-              : "opacity-0 blur-md scale-105"
-          }`}
+          className="w-full h-auto transition-all duration-700"
         />
 
-        <div className="absolute inset-0 p-4 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
+        <div className="absolute inset-0 p-4 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 bg-black/40">
 
           <div className="flex justify-between items-start">
             <span className="px-2.5 py-1 text-xs font-semibold text-zinc-100 bg-black/40 backdrop-blur-md rounded-full border border-white/20">

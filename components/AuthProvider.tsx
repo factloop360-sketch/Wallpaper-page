@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/utils/supabase/client'
 
@@ -25,8 +24,6 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-
-  const router = useRouter()
 
   useEffect(() => {
     const initializeSession = async () => {
@@ -55,14 +52,14 @@ export function AuthProvider({
       setIsLoading(false)
 
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        router.refresh()
+        window.location.reload()
       }
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [router])
+  }, [])
 
   return (
     <AuthContext.Provider value={{ user, session, isLoading }}>
