@@ -12,7 +12,8 @@ export default function SignupPage() {
       provider: "google",
       options: {
         // Ensure this matches your Supabase & Google Cloud redirect settings
-        redirectTo: `${window.location.origin}/auth-success`,
+       // redirectTo: `${window.location.origin}/auth-success`,
+       redirectTo: "https://wallpaper-demons.vercel.app/auth-success",
       },
     });
 

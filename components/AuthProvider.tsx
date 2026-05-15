@@ -34,6 +34,8 @@ export function AuthProvider({
         data: { session },
       } = await supabase.auth.getSession()
 
+      console.log("INITIAL SESSION:", session)
+
       setSession(session)
       setUser(session?.user ?? null)
       setIsLoading(false)
@@ -44,6 +46,10 @@ export function AuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, currentSession) => {
+
+      console.log("AUTH EVENT:", event)
+      console.log("CURRENT SESSION:", currentSession)
+
       setSession(currentSession)
       setUser(currentSession?.user ?? null)
       setIsLoading(false)
