@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server"; 
 import LikeButton from "@/components/LikeButton";
 import ProtectedDownloadButton from "@/components/ProtectedDownloadButton";
+//import DownloadHandler from "@/components/DownloadHandler";
 
 interface WallpaperPageProps {
   params: Promise<{
@@ -193,10 +194,11 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                   Unlock Premium Asset ($1.99)
                 </button>
               ) : (
-                <ProtectedDownloadButton 
-                  title={wallpaper.title} 
-                  url={wallpaper.image_url} 
-                />
+             <ProtectedDownloadButton
+                 wallpaperId={wallpaper.id}
+                  title={wallpaper.title}
+                  url={wallpaper.image_url}
+              />
               )}
               
               <div className="grid grid-cols-2 gap-4">

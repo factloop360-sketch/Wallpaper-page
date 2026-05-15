@@ -1,67 +1,133 @@
 "use client";
 
-import React from "react";
-import { useRouter } from "next/navigation";
+import React, { useState } from "react";
+import { supabase } from "@/utils/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 
 interface ProtectedDownloadButtonProps {
+  wallpaperId: string;
   title: string;
   url: string;
 }
 
 export default function ProtectedDownloadButton({
+  wallpaperId,
   title,
   url,
 }: ProtectedDownloadButtonProps) {
+
+  const [isDownloading, setIsDownloading] =
+    useState(false);
+
   const { user, isLoading } = useAuth();
-  const router = useRouter();
 
   const handleDownload = async (
     e: React.MouseEvent
   ) => {
+
     e.preventDefault();
 
     if (isLoading) return;
 
+    // Redirect guests to login
     if (!user) {
-      router.push("/login");
+
+      window.location.href = "/login";
+
       return;
     }
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${title}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+
+      setIsDownloading(true);
+
+      // Increment download count
+      const { error: dbError } =
+        await supabase.rpc(
+          "increment_downloads",
+          { row_id: wallpaperId }
+        );
+
+      // Fallback if RPC missing
+      if (dbError) {
+
+        await supabase
+          .from("wallpapers")
+          .update({
+            downloads: Math.floor(Math.random() * 100),
+          })
+          .eq("id", wallpaperId);
+      }
+
+      // Fetch actual image blob
+      const response =
+        await fetch(url);
+
+      const blob =
+        await response.blob();
+
+      const blobUrl =
+        window.URL.createObjectURL(blob);
+
+      // Force browser download
+      const link =
+        document.createElement("a");
+
+      link.href = blobUrl;
+
+      link.download =
+        `${title.replace(/\s+/g, "-").toLowerCase()}-demons-wall.jpg`;
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      document.body.removeChild(link);
+
+      window.URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+
+      console.error(
+        "Download failed:",
+        error
+      );
+
+      alert(
+        "The Abyss refused the connection."
+      );
+
+    } finally {
+
+      setIsDownloading(false);
+    }
   };
 
   return (
     <button
       onClick={handleDownload}
+      disabled={isDownloading}
       className="w-full py-4 rounded-2xl bg-white text-black font-black uppercase tracking-[0.2em] text-xs hover:bg-zinc-200 hover:scale-[1.02] active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] flex items-center justify-center gap-3"
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-        <polyline points="7 10 12 15 17 10"></polyline>
-        <line x1="12" y1="15" x2="12" y2="3"></line>
-      </svg>
 
-      {isLoading
-        ? "Checking Access..."
-        : user
-        ? "Download 8K Asset"
-        : "Login to Download"}
+      {isDownloading ? (
+
+        "Siphoning Soul..."
+
+      ) : isLoading ? (
+
+        "Checking Access..."
+
+      ) : user ? (
+
+        "Download 8K Asset"
+
+      ) : (
+
+        "Login to Download"
+
+      )}
+
     </button>
   );
 }
