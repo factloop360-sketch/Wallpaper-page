@@ -9,7 +9,8 @@ export const signInWithGoogle = async () => {
     provider: "google",
     options: {
       // For Next.js 15 App Router, ensure this matches your Supabase redirect URI whitelist
-      redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
+     // redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
+     redirectTo: `${window.location.origin}/auth-success`,
       queryParams: {
         access_type: "offline",
         prompt: "select_account",
