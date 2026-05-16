@@ -1,41 +1,51 @@
 "use client";
 
-import React, { useState,type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabase/client";
 
-// Hardcoded Admin Credentials
-const ADMIN_EMAIL = "admin@abyss.com";
-const ADMIN_SECRET = "Legion2026!";
+// Simple Google Icon SVG
+const GoogleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+    <path fill="#EA4335" d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.761H12.545z"/>
+  </svg>
+);
 
 export default function AdminLogin() {
   const router = useRouter();
-  
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    setError("");
+  // --- Smart Session Detection ---
+  // If the user lands on this page but already has a valid session, push them straight to the dashboard.
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        router.push("/admin");
+      }
+    };
+    
+    checkExistingSession();
+  }, [router]);
+
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
-    //my code
-    const ADMIN_EMAIL =
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    setError("");
 
-const ADMIN_SECRET =
-  process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+    // Triggers the Google OAuth flow
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        // Sends the user to your server-side callback to establish the cookie, then to /admin
+        redirectTo: `${window.location.origin}/auth/callback?next=/admin`,
+      },
+    });
 
-    // Artificial delay for a premium, heavy-processing feel
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    if (email === ADMIN_EMAIL && password === ADMIN_SECRET) {
-      // Set session and redirect
-      localStorage.setItem("admin_session", "authenticated");
-      router.push("/admin");
-    } else {
-      setError("Invalid credentials. Access denied.");
+    if (authError) {
+      setError(authError.message);
       setIsLoading(false);
     }
   };
@@ -79,72 +89,35 @@ const ADMIN_SECRET =
 
         {/* Login Form Card */}
         <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] p-8 shadow-2xl">
-          <form className="space-y-6" onSubmit={handleLogin}>
-            
-            {/* Email Input */}
-            <div>
-              <label htmlFor="email" className="block text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 ml-1">
-                Admin Designation
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-5 py-4 bg-black/50 border border-white/5 rounded-2xl text-white text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all placeholder:text-zinc-700"
-                placeholder="admin@domain.com"
-              />
+          
+          {error && (
+            <div className="mb-6 p-4 bg-red-950/30 border border-red-900/50 rounded-xl animate-in fade-in slide-in-from-top-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-red-500 text-center">
+                {error}
+              </p>
             </div>
+          )}
 
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 ml-1">
-                Security Clearance
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-5 py-4 bg-black/50 border border-white/5 rounded-2xl text-white text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all placeholder:text-zinc-700"
-                placeholder="••••••••••••"
-              />
-            </div>
-
-            {/* Error Message Display */}
-            {error && (
-              <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-xl animate-in fade-in slide-in-from-top-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-red-500 text-center">
-                  {error}
-                </p>
-              </div>
+          <button
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className="w-full flex justify-center items-center gap-3 py-4 px-4 border border-transparent rounded-2xl shadow-sm text-xs font-black uppercase tracking-[0.2em] text-black bg-white hover:bg-zinc-200 hover:scale-[1.02] active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Connecting...
+              </>
+            ) : (
+              <>
+                <GoogleIcon />
+                Sign in with Google
+              </>
             )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center gap-3 py-4 px-4 border border-transparent rounded-2xl shadow-sm text-xs font-black uppercase tracking-[0.2em] text-black bg-white hover:bg-zinc-200 hover:scale-[1.02] active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed mt-4"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Decrypting...
-                </>
-              ) : (
-                "Initialize Access"
-              )}
-            </button>
-          </form>
+          </button>
         </div>
         
         {/* Footer */}

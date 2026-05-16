@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/utils/supabase/client";
+import { useAuth } from "@/components/AuthProvider";
 import LoginModal from "./LoginModal";
 
 export interface WallpaperCardProps {
@@ -17,6 +18,7 @@ export interface WallpaperCardProps {
   width?: number;
   height?: number;
   alt?: string;
+  is_premium?: boolean;
 }
 
 const HeartIcon = ({ filled }: { filled?: boolean }) => (
@@ -44,13 +46,14 @@ export default function WallpaperCard({
   width = 800,
   height = 1000,
   alt,
+  is_premium = false,
 }: WallpaperCardProps) {
+  const { user } = useAuth();
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentLikes, setCurrentLikes] = useState(likes);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoadingLike, setIsLoadingLike] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const likedWallpapers = JSON.parse(localStorage.getItem("liked_souls") || "[]");
@@ -59,15 +62,45 @@ export default function WallpaperCard({
     }
   }, [id]);
 
+  // Forces background binary stream download to bypass cross-origin browser tab opening
+  const triggerBinaryDownload = async () => {
+    try {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error("Network response was not ok");
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${title.toLowerCase().replace(/\s+/g, "-")}.jpg`;
+      
+      document.body.appendChild(link);
+      link.click();
+      
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Direct download failed, falling back to new tab routing:", error);
+      window.open(src, "_blank");
+    }
+  };
+
   const handleDownloadClick = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation(); 
-    if (!isLoggedIn) {
+
+    if (!user) {
       setIsModalOpen(true);
-    } else {
-      alert(`Downloading high-resolution file for: ${title}`);
-      window.open(src, "_blank");
+      return;
     }
+
+    if (is_premium) {
+      window.location.href = `/wallpaper/${slug}`;
+      return;
+    }
+
+    triggerBinaryDownload();
   };
 
   const handleLikeToggle = async (e: React.MouseEvent) => {
@@ -113,7 +146,7 @@ export default function WallpaperCard({
     <>
       <Link 
         href={`/wallpaper/${slug}`}
-        prefetch={true} // Forces Next.js to aggressively prepare the detail page
+        prefetch={true} 
         className={`group relative block break-inside-avoid rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
           !isLoaded ? "bg-zinc-200 dark:bg-zinc-800 animate-pulse" : "bg-zinc-100 dark:bg-zinc-900"
         }`}
@@ -140,9 +173,16 @@ export default function WallpaperCard({
         <div className="absolute inset-0 p-4 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out z-10">
           
           <div className="flex justify-between items-start translate-y-[-10px] group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]">
-            <span className="px-2.5 py-1 text-[10px] sm:text-xs font-semibold tracking-wide text-zinc-100 bg-black/40 backdrop-blur-md rounded-full border border-white/20 shadow-sm">
-              {resolution}
-            </span>
+            <div className="flex gap-1.5 items-center">
+              <span className="px-2.5 py-1 text-[10px] sm:text-xs font-semibold tracking-wide text-zinc-100 bg-black/40 backdrop-blur-md rounded-full border border-white/20 shadow-sm">
+                {resolution}
+              </span>
+              {is_premium && (
+                <span className="px-2.5 py-1 text-[10px] sm:text-xs font-black tracking-widest text-amber-400 bg-amber-500/10 backdrop-blur-md rounded-full border border-amber-500/30 shadow-sm">
+                  PRO
+                </span>
+              )}
+            </div>
             <button 
               className={`p-2.5 backdrop-blur-md rounded-full transition-all duration-300 hover:scale-110 active:scale-75 disabled:opacity-50 ${
                 isLiked 
@@ -174,11 +214,9 @@ export default function WallpaperCard({
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onLogin={() => {
-          setIsLoggedIn(true);
           setIsModalOpen(false);
           setTimeout(() => {
-            alert(`Successfully logged in! Downloading: ${title}`);
-            window.open(src, "_blank");
+            triggerBinaryDownload();
           }, 400);
         }} 
       />
