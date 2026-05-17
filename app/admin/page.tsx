@@ -100,16 +100,16 @@ export default function AdminCommandCenter() {
         return;
       }
 
-      // Check the custom admin table using the user's UUID
+      // Check the custom admin table using the correct column name: 'id'
       const { data: adminData, error: dbError } = await supabase
         .from('admin')
-        .select('role')
-        .eq('uuid', user.id)
+        .select('*')
+        .eq('id', user.id)
         .single();
 
       if (dbError || !adminData) {
         console.warn("Intruder blocked.");
-        router.push("/");
+        router.push("/"); // Security redirect
         return;
       }
 
@@ -305,7 +305,7 @@ export default function AdminCommandCenter() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut(); // Secure server-side logout
+    await supabase.auth.signOut();
     router.push("/admin-login");
   };
 
@@ -588,8 +588,101 @@ export default function AdminCommandCenter() {
         </div>
       </nav>
 
-      {/* MODALS REMAIN THE SAME - EDIT & DELETE */}
-      {/* ... (Your Edit and Delete Modal JSX blocks remain unchanged here) ... */}
+      {/* EDIT MODAL OVERLAY */}
+      {editingWallpaper && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#09090b] border border-white/10 rounded-[2rem] p-6 sm:p-8 max-w-3xl w-full shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-black italic uppercase tracking-tighter">
+                Modify <span className="text-red-500">Metadata</span>
+              </h2>
+              <button onClick={() => setEditingWallpaper(null)} className="text-zinc-500 hover:text-white p-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <form onSubmit={submitEdit} className="space-y-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Title</label>
+                  <input required value={editFormData.title || ""} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full bg-zinc-900/80 rounded-2xl px-5 py-3.5 border border-white/5 font-medium outline-none focus:border-red-500/50 text-white transition-colors" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">URL Slug</label>
+                  <input disabled value={editFormData.slug || ""} className="w-full bg-zinc-900/30 rounded-2xl px-5 py-3.5 border border-transparent text-zinc-600 font-mono text-xs outline-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Description</label>
+                <textarea value={editFormData.description || ""} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full bg-zinc-900/80 rounded-2xl px-5 py-3.5 border border-white/5 min-h-[100px] resize-none outline-none focus:border-red-500/50 text-white transition-colors" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Hashtags (Enter to add)</label>
+                <div className="flex flex-wrap gap-2 p-3 bg-zinc-900/80 rounded-2xl min-h-[56px] border border-white/5 focus-within:border-red-500/50 transition-all">
+                  {(editFormData.tags || []).map(tag => (
+                    <span key={tag} className="bg-red-950/50 text-red-400 border border-red-900/50 px-3 py-1 rounded-xl text-[10px] uppercase tracking-widest font-bold flex items-center gap-2">
+                      #{tag} <button type="button" onClick={() => handleEditTagRemove(tag)} className="hover:text-white">×</button>
+                    </span>
+                  ))}
+                  <input value={editTagInput} onChange={e => setEditTagInput(e.target.value)} onKeyDown={handleEditTagAdd} placeholder="Add tag..." className="bg-transparent border-none focus:ring-0 outline-none text-xs flex-1 min-w-[120px] text-white" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <select value={editFormData.category || ""} onChange={e => setEditFormData({...editFormData, category: e.target.value})} className="bg-zinc-900/80 rounded-2xl px-5 py-3.5 border border-white/5 appearance-none cursor-pointer text-xs font-black uppercase tracking-widest outline-none focus:border-red-500/50 text-white">
+                  {ADMIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+
+                <button type="button" onClick={() => setEditFormData(p => ({...p, premium: !p.premium}))} className={`flex items-center justify-between px-5 py-3.5 rounded-2xl border transition-all outline-none ${editFormData.premium ? "bg-red-950/20 border-red-900/50 text-red-500" : "bg-zinc-900/80 border-white/5 text-zinc-500"}`}>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Premium</span>
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${editFormData.premium ? "bg-red-500 border-red-500 text-black" : "border-zinc-700"}`}>{editFormData.premium && <CheckIcon />}</div>
+                </button>
+
+                <button type="button" onClick={() => setEditFormData(p => ({...p, watermark: !p.watermark}))} className={`flex items-center justify-between px-5 py-3.5 rounded-2xl border transition-all outline-none ${editFormData.watermark ? "bg-red-950/20 border-red-900/50 text-red-500" : "bg-zinc-900/80 border-white/5 text-zinc-500"}`}>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Watermark</span>
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${editFormData.watermark ? "bg-red-500 border-red-500 text-black" : "border-zinc-700"}`}>{editFormData.watermark && <CheckIcon />}</div>
+                </button>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-white/5">
+                <button type="button" onClick={() => setEditingWallpaper(null)} disabled={isUpdating} className="flex-1 py-4 bg-zinc-900 hover:bg-zinc-800 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50">
+                  Discard Changes
+                </button>
+                <button type="submit" disabled={isUpdating} className="flex-[2] py-4 bg-white hover:bg-zinc-200 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] flex items-center justify-center disabled:opacity-50">
+                  {isUpdating ? "Overwriting..." : "Commit Update"}
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL OVERLAY (DELETE) */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#09090b] border border-red-900/50 rounded-[2rem] p-8 max-w-md w-full shadow-[0_0_50px_rgba(220,38,38,0.15)] animate-in zoom-in-95 slide-in-from-bottom-4">
+            <div className="w-16 h-16 rounded-full bg-red-950/50 border border-red-900/50 flex items-center justify-center mx-auto mb-6 text-red-500">
+              <TrashIcon />
+            </div>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-center mb-2">Confirm Purge</h2>
+            <p className="text-zinc-400 text-xs text-center mb-8 leading-relaxed">
+              You are about to permanently delete <strong className="text-white">&quot;{deleteTarget.title}&quot;</strong>. This will erase the record from the database and physically remove the file from the storage bucket.
+            </p>
+            <div className="flex gap-3">
+              <button disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50">Cancel</button>
+              <button disabled={isDeleting} onClick={confirmDelete} className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-[0_0_20px_rgba(220,38,38,0.3)] flex items-center justify-center disabled:opacity-50">
+                {isDeleting ? "Purging..." : "Obliterate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
