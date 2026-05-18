@@ -144,11 +144,20 @@ export default function AdminCommandCenter() {
     setIsDeleting(true);
 
     try {
-      const urlParts = deleteTarget.image_url.split('/public/wallpapers/');
-      if (urlParts.length > 1) {
-        const filePath = urlParts[1];
-        await supabase.storage.from('wallpapers').remove([filePath]);
+         await fetch(
+      "/api/delete",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          imageUrl:
+            deleteTarget.image_url,
+        }),
       }
+    );
 
       const { error: dbError } = await supabase.from('wallpapers').delete().eq('id', deleteTarget.id);
       if (dbError) throw dbError;
@@ -268,14 +277,35 @@ export default function AdminCommandCenter() {
     setIsUploading(true);
 
     try {
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${formData.slug}-${Date.now()}.${fileExt}`;
-      const filePath = `uploads/${fileName}`;
+          const uploadFormData =
+      new FormData();
 
-      const { error: uploadError } = await supabase.storage.from('wallpapers').upload(filePath, selectedFile);
-      if (uploadError) throw uploadError;
+    uploadFormData.append(
+      "file",
+      selectedFile
+    );
 
-      const { data: { publicUrl } } = supabase.storage.from('wallpapers').getPublicUrl(filePath);
+    const uploadResponse =
+      await fetch(
+        "/api/upload",
+        {
+          method: "POST",
+          body: uploadFormData,
+       }
+  );
+
+const uploadResult =
+  await uploadResponse.json();
+
+if (!uploadResult.success) {
+
+  throw new Error(
+    uploadResult.error
+  );
+}
+
+const publicUrl =
+  uploadResult.url;
 
       const { error: dbError } = await supabase.from('wallpapers').insert({
         title: formData.title,
