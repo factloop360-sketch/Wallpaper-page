@@ -12,6 +12,9 @@ export interface Wallpaper {
   views: number;
   downloads: number;
   author: string;
+  premium?: boolean;
+  watermark?: boolean;
+  price: number | null;
 }
 
 interface MasonryGridProps {

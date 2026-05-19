@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import React, {
   useState,
@@ -23,8 +24,9 @@ export interface WallpaperCardProps {
   width?: number;
   height?: number;
   alt?: string;
-  is_premium?: boolean;
+  premium?: boolean;
   watermark?: boolean;
+  price?: number | null;
 }
 
 const HeartIcon = ({
@@ -79,10 +81,12 @@ function WallpaperCard({
   width = 800,
   height = 1000,
   alt,
-  is_premium = false,
+  premium = false,
   watermark = false,
+  price = null,
 }: WallpaperCardProps) {
 
+  const router = useRouter();
   const { user } = useAuth();
 
   const [isLoaded, setIsLoaded] =
@@ -115,14 +119,29 @@ function WallpaperCard({
 
   }, [id]);
 
-  // Faster binary download
+  // REAL DOWNLOAD
   const triggerBinaryDownload =
     async () => {
 
       try {
 
+        const masterUrl =
+          src.split("?")[0];
+
         const response =
-          await fetch(src);
+          await fetch(
+            `/api/download?url=${encodeURIComponent(masterUrl)}&filename=${encodeURIComponent(
+              `${title
+                .toLowerCase()
+                .replace(/\s+/g, "-")}.jpg`
+            )}`
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            "Download failed"
+          );
+        }
 
         const blob =
           await response.blob();
@@ -163,38 +182,42 @@ function WallpaperCard({
       }
     };
 
-  const handleDownloadClick = (
-    e: React.MouseEvent
-  ) => {
+  const handleDownloadClick =
+    async (
+      e: React.MouseEvent
+    ) => {
 
-    e.preventDefault();
+      e.preventDefault();
+      e.stopPropagation();
+      e.nativeEvent.stopImmediatePropagation();
 
-    e.stopPropagation();
+      // LOGIN REQUIRED
+      if (!user) {
 
-    if (!user) {
+        setIsModalOpen(true);
 
-      setIsModalOpen(true);
+        return;
+      }
 
-      return;
-    }
+      // PREMIUM WALLPAPER
+      if (Boolean(premium)) {
 
-    if (is_premium) {
+        router.push(
+          `/wallpaper/${slug}`
+        );
 
-      window.location.href =
-        `/wallpaper/${slug}`;
+        return;
+      }
 
-      return;
-    }
-
-    triggerBinaryDownload();
-  };
+      // FREE WALLPAPER DOWNLOAD
+      await triggerBinaryDownload();
+    };
 
   const handleLikeToggle = async (
     e: React.MouseEvent
   ) => {
 
     e.preventDefault();
-
     e.stopPropagation();
 
     if (isLoadingLike) return;
@@ -292,7 +315,7 @@ function WallpaperCard({
           }`}
         />
 
-        {/* LOADING SKELETON */}
+        {/* LOADING */}
         {!isLoaded && (
           <div className="absolute inset-0 animate-pulse bg-zinc-800" />
         )}
@@ -306,9 +329,15 @@ function WallpaperCard({
               {resolution}
             </span>
 
-            {is_premium === true && (
+            {premium === true && (
               <span className="px-2 py-1 text-[10px] font-black tracking-widest text-amber-300 bg-amber-500/15 backdrop-blur-sm rounded-full border border-amber-500/20">
                 PRO
+              </span>
+            )}
+
+            {price && (
+              <span className="px-2 py-1 text-[10px] font-black tracking-widest text-yellow-200 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+                ${price}
               </span>
             )}
 
@@ -336,10 +365,10 @@ function WallpaperCard({
 
         </div>
 
-        {/* HOVER OVERLAY */}
+        {/* OVERLAY */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-        {/* BOTTOM CONTENT */}
+        {/* BOTTOM */}
         <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between opacity-0 group-hover:opacity-100 translate-y-3 group-hover:translate-y-0 transition-all duration-300 z-20">
 
           <div>
@@ -354,7 +383,7 @@ function WallpaperCard({
 
           </div>
 
-          {/* DOWNLOAD BUTTON */}
+          {/* DOWNLOAD */}
           <button
             className="p-2.5 bg-white text-black rounded-full hover:bg-zinc-200 transition-all pointer-events-auto"
             onClick={
@@ -379,7 +408,16 @@ function WallpaperCard({
 
           setTimeout(() => {
 
-            triggerBinaryDownload();
+            if (premium === true) {
+
+              router.push(
+                `/wallpaper/${slug}`
+              );
+
+            } else {
+
+              triggerBinaryDownload();
+            }
 
           }, 300);
         }}

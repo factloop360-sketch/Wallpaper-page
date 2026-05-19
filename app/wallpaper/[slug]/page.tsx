@@ -6,7 +6,6 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server"; 
 import LikeButton from "@/components/LikeButton";
 import ProtectedDownloadButton from "@/components/ProtectedDownloadButton";
-//import DownloadHandler from "@/components/DownloadHandler";
 
 interface WallpaperPageProps {
   params: Promise<{
@@ -57,7 +56,6 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
   const { slug } = resolvedParams;
   const supabase = await createClient();
 
-  // Fetch Auth context inside Server Component to control the Watermark render state
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: wallpaper, error } = await supabase
@@ -70,10 +68,13 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
     notFound();
   }
 
-  await supabase.rpc('increment_views', { row_id: wallpaper.id });
-  const optimizedPreviewUrl = `${wallpaper.image_url}?width=1600&format=webp&quality=85`;
+  // OPTIMIZATION 1: Fire-and-forget RPC. 
+  supabase.rpc('increment_views', { row_id: wallpaper.id }).then();
 
-  // Fix: Use .ilike for Related query mapping
+  // OPTIMIZATION 2: Separate Display Resolutions
+  const optimizedPreviewUrl = `${wallpaper.image_url}?width=1600&format=webp&quality=85`;
+  const microscopicBlurUrl = `${wallpaper.image_url}?width=200&format=webp&quality=50`;
+
   const { data: related } = await supabase
     .from("wallpapers")
     .select("*")
@@ -81,30 +82,46 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
     .neq("id", wallpaper.id)
     .limit(4);
 
-  // Dynamic Toggle Evaluations
   const applyWatermark = wallpaper.has_watermark && !user;
   
-  // Verify ownership criteria if asset is locked down as a Premium item
- // let hasPurchased = false;
- let hasPurchased = false;
+  // We can leave this here in case you want to use hasPurchased for UI logic later!
+  let hasPurchased = false;
   if (wallpaper.is_premium && user) {
     const { data: order } = await supabase
       .from("purchases")
-      .select("id") // We only need the ID to check existence
+      .select("id")
       .eq("user_id", user.id)
       .eq("wallpaper_id", wallpaper.id)
-      .maybeSingle(); // Tells Supabase to look for 1 or 0 items safely without crashing
+      .maybeSingle(); 
     
     if (order) hasPurchased = true;
   }
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "name": wallpaper.title,
+    "description": wallpaper.description || `High resolution ${wallpaper.category} wallpaper`,
+    "contentUrl": wallpaper.image_url,
+    "thumbnailUrl": optimizedPreviewUrl,
+    "author": {
+      "@type": "Person",
+      "name": wallpaper.author || "Demon Creator"
+    },
+    "keywords": wallpaper.tags?.join(", ")
+  };
+
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-red-500/30 pb-24 relative overflow-hidden">
       
-      {/* Cinematic Ambient Background Glow */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <div className="fixed inset-0 z-0 pointer-events-none">
         <Image 
-          src={optimizedPreviewUrl} 
+          src={microscopicBlurUrl} 
           alt="Ambient Background Glow" 
           fill 
           className="object-cover blur-[120px] opacity-20 scale-125 saturate-150" 
@@ -112,7 +129,6 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-[#09090b]/40 via-[#09090b]/80 to-[#09090b]"></div>
       </div>
 
-      {/* Dedicated back nav item */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#09090b]/80 backdrop-blur-2xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         <div className="max-w-[1800px] mx-auto px-6 h-20 flex items-center">
           <Link 
@@ -143,7 +159,6 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                 className="object-contain transition-transform duration-[1500ms] ease-out group-hover:scale-102"
               />
 
-              {/* HARDWARE-ACCELERATED WATERMARK OVERLAY */}
               {applyWatermark && (
                 <div className="absolute inset-0 z-20 pointer-events-none select-none flex flex-col items-center justify-center bg-black/10 overflow-hidden">
                   <div className="w-[150%] h-[150%] flex flex-col justify-center items-center gap-24 opacity-[0.04] text-white font-black tracking-[0.6em] text-2xl md:text-4xl uppercase select-none rotate-[-25deg] mix-blend-screen">
@@ -189,17 +204,16 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
             </div>
 
             <div className="flex flex-col gap-4 mb-12">
-              {wallpaper.is_premium && !hasPurchased ? (
-                <button className="w-full py-4 rounded-xl bg-gradient-to-r from-yellow-600 to-amber-500 text-black text-center text-xs font-black uppercase tracking-[0.2em] transition-all hover:brightness-110 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
-                  Unlock Premium Asset ($1.99)
-                </button>
-              ) : (
-             <ProtectedDownloadButton
-                 wallpaperId={wallpaper.id}
+              
+            // dynamic price button
+                <ProtectedDownloadButton
+                  wallpaperId={wallpaper.id}
                   title={wallpaper.title}
                   url={wallpaper.image_url}
-              />
-              )}
+                  slug={wallpaper.slug}
+                  isPremium={wallpaper.is_premium}
+                  price={wallpaper.price || 1.99} // Use the dynamic DB price, default to 1.99
+                />
               
               <div className="grid grid-cols-2 gap-4">
                 <LikeButton wallpaperId={wallpaper.id} initialLikes={wallpaper.likes || 0} />
@@ -235,7 +249,6 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
           </div>
         </div>
 
-        {/* RELATED WALLPAPERS SECTION */}
         {related && related.length > 0 && (
           <div className="mt-32 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-300">
             <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-12 border-b border-white/10 pb-4">
@@ -246,7 +259,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                 <Link key={wp.id} href={`/wallpaper/${wp.slug}`} className="group space-y-4 block">
                   <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden bg-zinc-900 border border-white/10 shadow-xl group-hover:border-white/20 transition-colors group-hover:shadow-[0_0_30px_rgba(220,38,38,0.15)]">
                     <Image 
-                      src={`${wp.image_url}?width=500&quality=70`}
+                      src={`${wp.image_url}?width=500&quality=70&format=webp`}
                       alt={wp.title} 
                       fill 
                       unoptimized 

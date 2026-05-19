@@ -22,6 +22,8 @@ interface WallpaperUpload {
   resolution: string;
   fileSize: string;
   fileType: "image" | "video";
+  // 🚨 NEW: Price state for the upload form
+  price: string; 
 }
 
 interface Wallpaper {
@@ -39,6 +41,8 @@ interface Wallpaper {
   downloads: number;
   views: number;
   created_at: string;
+  // 🚨 NEW: Price definition from the database
+  price: number | null; 
 }
 
 // --- Icons ---
@@ -68,6 +72,7 @@ export default function AdminCommandCenter() {
     title: "", slug: "", description: "", category: ADMIN_CATEGORIES[0],
     tags: [], premium: false, watermark: true,
     resolution: "Detecting...", fileSize: "0MB", fileType: "image",
+    price: "", // 🚨 NEW
   });
   const [tagInput, setTagInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -100,7 +105,6 @@ export default function AdminCommandCenter() {
         return;
       }
 
-      // Check the custom admin table using the correct column name: 'id'
       const { data: adminData, error: dbError } = await supabase
         .from('admin')
         .select('*')
@@ -109,7 +113,7 @@ export default function AdminCommandCenter() {
 
       if (dbError || !adminData) {
         console.warn("Intruder blocked.");
-        router.push("/"); // Security redirect
+        router.push("/"); 
         return;
       }
 
@@ -144,20 +148,11 @@ export default function AdminCommandCenter() {
     setIsDeleting(true);
 
     try {
-         await fetch(
-      "/api/delete",
-      {
+      await fetch("/api/delete", {
         method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          imageUrl:
-            deleteTarget.image_url,
-        }),
-      }
-    );
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: deleteTarget.image_url }),
+      });
 
       const { error: dbError } = await supabase.from('wallpapers').delete().eq('id', deleteTarget.id);
       if (dbError) throw dbError;
@@ -182,6 +177,7 @@ export default function AdminCommandCenter() {
       tags: wp.tags || [],
       premium: wp.premium || false,
       watermark: wp.watermark || false,
+      price: wp.price ? wp.price.toString() : "", // 🚨 Load existing price if any
     });
   };
 
@@ -215,6 +211,10 @@ export default function AdminCommandCenter() {
     setIsUpdating(true);
 
     try {
+      // 🚨 THE PRICING ENGINE AUTO-TOGGLE (EDIT) 🚨
+      // If premium is true, use their price or default to 1.99. If false, force null.
+      const finalPrice = editFormData.premium ? (parseFloat(editFormData.price as string) || 1.99) : null;
+
       const { error } = await supabase.from('wallpapers').update({
         title: editFormData.title,
         slug: editFormData.slug,
@@ -222,12 +222,13 @@ export default function AdminCommandCenter() {
         category: editFormData.category,
         tags: editFormData.tags,
         premium: editFormData.premium,
-        watermark: editFormData.watermark
+        watermark: editFormData.watermark,
+        price: finalPrice // 🚨 Inject the smart price
       }).eq('id', editingWallpaper.id);
 
       if (error) throw error;
 
-      setWallpapers(prev => prev.map(w => w.id === editingWallpaper.id ? { ...w, ...editFormData } as Wallpaper : w));
+      setWallpapers(prev => prev.map(w => w.id === editingWallpaper.id ? { ...w, ...editFormData, price: finalPrice } as Wallpaper : w));
       setEditingWallpaper(null);
     } catch (error: any) {
       alert(`Update Failed: ${error.message}`);
@@ -277,35 +278,24 @@ export default function AdminCommandCenter() {
     setIsUploading(true);
 
     try {
-          const uploadFormData =
-      new FormData();
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", selectedFile);
 
-    uploadFormData.append(
-      "file",
-      selectedFile
-    );
-
-    const uploadResponse =
-      await fetch(
-        "/api/upload",
-        {
+      const uploadResponse = await fetch("/api/upload", {
           method: "POST",
           body: uploadFormData,
-       }
-  );
+      });
 
-const uploadResult =
-  await uploadResponse.json();
+      const uploadResult = await uploadResponse.json();
 
-if (!uploadResult.success) {
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error);
+      }
 
-  throw new Error(
-    uploadResult.error
-  );
-}
+      const publicUrl = uploadResult.url;
 
-const publicUrl =
-  uploadResult.url;
+      // 🚨 THE PRICING ENGINE AUTO-TOGGLE (UPLOAD) 🚨
+      const finalPrice = formData.premium ? (parseFloat(formData.price) || 1.99) : null;
 
       const { error: dbError } = await supabase.from('wallpapers').insert({
         title: formData.title,
@@ -317,13 +307,14 @@ const publicUrl =
         watermark: formData.watermark,
         resolution: formData.resolution,
         image_url: publicUrl,
+        price: finalPrice, // 🚨 Saving the price
         likes: 0, downloads: 0, views: 0
       });
 
       if (dbError) throw dbError;
       alert("Asset live in the Abyss!");
       
-      setFormData({ title: "", slug: "", description: "", category: ADMIN_CATEGORIES[0], tags: [], premium: false, watermark: true, resolution: "Detecting...", fileSize: "0MB", fileType: "image" });
+      setFormData({ title: "", slug: "", description: "", category: ADMIN_CATEGORIES[0], tags: [], premium: false, watermark: true, resolution: "Detecting...", fileSize: "0MB", fileType: "image", price: "" });
       setPreviewUrl(null);
       setSelectedFile(null);
       fetchAssets();
@@ -471,6 +462,20 @@ const publicUrl =
                   </button>
                 </div>
 
+                {/* 🚨 NEW UI: Dynamic Pricing Box (Upload) 🚨 */}
+                {formData.premium && (
+                  <div className="space-y-1 mt-4 animate-in fade-in slide-in-from-top-2">
+                    <label className="text-[10px] font-black uppercase text-amber-500 ml-1">Asset Price ($)</label>
+                    <input 
+                      type="number" step="0.01" min="0.50"
+                      value={formData.price} 
+                      onChange={e => setFormData({...formData, price: e.target.value})} 
+                      placeholder="1.99 (Default)" 
+                      className="w-full bg-amber-950/10 rounded-2xl px-6 py-4 border border-amber-900/30 font-medium outline-none focus:border-amber-500/50 text-amber-500 placeholder:text-amber-900/50 transition-colors" 
+                    />
+                  </div>
+                )}
+
                 <button disabled={!selectedFile || isUploading} className="w-full py-5 bg-white text-black rounded-3xl text-xs font-black uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:bg-zinc-200 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 outline-none mt-4">
                   {isUploading ? "Injecting into DB..." : "Publish Wallpaper"}
                 </button>
@@ -529,8 +534,15 @@ const publicUrl =
                       
                       <div className="relative aspect-video bg-black overflow-hidden border-b border-white/5 shrink-0">
                         <img src={`${wp.image_url}?width=400&quality=60`} alt={wp.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-700 ease-out" />
-                        <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded border border-white/10 text-[8px] font-black uppercase tracking-widest text-zinc-300">
-                          {wp.category}
+                        <div className="absolute top-3 left-3 flex gap-2">
+                          <div className="px-2 py-1 bg-black/60 backdrop-blur-md rounded border border-white/10 text-[8px] font-black uppercase tracking-widest text-zinc-300">
+                            {wp.category}
+                          </div>
+                          {wp.premium && (
+                            <div className="px-2 py-1 bg-amber-500/20 backdrop-blur-md rounded border border-amber-500/30 text-[8px] font-black uppercase tracking-widest text-amber-500">
+                              ${wp.price || "1.99"}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -677,6 +689,20 @@ const publicUrl =
                   <div className={`w-4 h-4 rounded border flex items-center justify-center ${editFormData.watermark ? "bg-red-500 border-red-500 text-black" : "border-zinc-700"}`}>{editFormData.watermark && <CheckIcon />}</div>
                 </button>
               </div>
+
+              {/* 🚨 NEW UI: Dynamic Pricing Box (Edit Modal) 🚨 */}
+              {editFormData.premium && (
+                <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[10px] font-black uppercase text-amber-500 ml-1">Asset Price ($)</label>
+                  <input 
+                    type="number" step="0.01" min="0.50"
+                    value={editFormData.price || ""} 
+                    onChange={e => setEditFormData({...editFormData, price: e.target.value})} 
+                    placeholder="1.99 (Default)" 
+                    className="w-full bg-amber-950/10 rounded-2xl px-5 py-3.5 border border-amber-900/30 font-medium outline-none focus:border-amber-500/50 text-amber-500 placeholder:text-amber-900/50 transition-colors" 
+                  />
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4 border-t border-white/5">
                 <button type="button" onClick={() => setEditingWallpaper(null)} disabled={isUpdating} className="flex-1 py-4 bg-zinc-900 hover:bg-zinc-800 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50">

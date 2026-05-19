@@ -1,17 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enables the "use server" feature for your Navbar logout function
-  experimental: {
-    serverActions: true,
-  },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**.supabase.co', // Allows all Supabase storage buckets
+        hostname: 'pub-518d6ddd1158470e905f52e633c1350f.r2.dev', // Your exact R2 public domain
       },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co', // Whitelists your legacy Supabase storage
+      }
     ],
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig; // (Use module.exports = nextConfig; if it's a .js file)

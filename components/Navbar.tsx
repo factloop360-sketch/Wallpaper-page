@@ -18,10 +18,11 @@ function NavbarContent({ categories }: { categories: string[] }) {
   const currentCategoryParam = searchParams.get("category");
   const currentSortParam = searchParams.get("sort");
   
-  let activeCategory = "Home";
-  if (currentSortParam === "trending") activeCategory = "Trending";
+  let activeCategory = "";
+  if (searchParams.get("q")) activeCategory = ""; // Clear sub-bar highlight during global searches
+  else if (currentSortParam === "trending") activeCategory = "Trending";
   else if (currentSortParam === "latest") activeCategory = "Latest";
-  else if (currentCategoryParam && currentCategoryParam !== "all") activeCategory = currentCategoryParam;
+  else activeCategory = currentCategoryParam && currentCategoryParam !== "all" ? currentCategoryParam : "Home";
 
   const [localSearchQuery, setLocalSearchQuery] = useState(searchParams.get("q") || "");
 
