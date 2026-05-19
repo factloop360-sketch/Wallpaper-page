@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
 import React, {
   useState,
   useEffect,
@@ -87,6 +88,7 @@ function WallpaperCard({
 }: WallpaperCardProps) {
 
   const router = useRouter();
+
   const { user } = useAuth();
 
   const [isLoaded, setIsLoaded] =
@@ -119,7 +121,15 @@ function WallpaperCard({
 
   }, [id]);
 
-  // REAL DOWNLOAD
+  // DEBUG
+  console.log({
+    title,
+    premium,
+    watermark,
+    price,
+  });
+
+  // FREE DOWNLOAD
   const triggerBinaryDownload =
     async () => {
 
@@ -128,48 +138,15 @@ function WallpaperCard({
         const masterUrl =
           src.split("?")[0];
 
-        const response =
-          await fetch(
-            `/api/download?url=${encodeURIComponent(masterUrl)}&filename=${encodeURIComponent(
-              `${title
-                .toLowerCase()
-                .replace(/\s+/g, "-")}.jpg`
-            )}`
-          );
-
-        if (!response.ok) {
-          throw new Error(
-            "Download failed"
-          );
-        }
-
-        const blob =
-          await response.blob();
-
-        const blobUrl =
-          window.URL.createObjectURL(
-            blob
-          );
-
-        const link =
-          document.createElement("a");
-
-        link.href = blobUrl;
-
-        link.download =
+        const filename =
           `${title
-            .toLowerCase()
-            .replace(/\s+/g, "-")}.jpg`;
+            .replace(/\s+/g, "-")
+            .toLowerCase()}.jpg`;
 
-        document.body.appendChild(link);
-
-        link.click();
-
-        document.body.removeChild(link);
-
-        window.URL.revokeObjectURL(
-          blobUrl
-        );
+        window.location.href =
+          `/api/download?url=${encodeURIComponent(
+            masterUrl
+          )}&filename=${filename}`;
 
       } catch (error) {
 
@@ -177,11 +154,10 @@ function WallpaperCard({
           "Download failed:",
           error
         );
-
-        window.open(src, "_blank");
       }
     };
 
+  // DOWNLOAD CLICK
   const handleDownloadClick =
     async (
       e: React.MouseEvent
@@ -199,7 +175,7 @@ function WallpaperCard({
         return;
       }
 
-      // PREMIUM WALLPAPER
+      // PREMIUM → DETAIL PAGE
       if (Boolean(premium)) {
 
         router.push(
@@ -209,76 +185,91 @@ function WallpaperCard({
         return;
       }
 
-      // FREE WALLPAPER DOWNLOAD
+      // FREE DOWNLOAD
       await triggerBinaryDownload();
     };
 
-  const handleLikeToggle = async (
-    e: React.MouseEvent
-  ) => {
+  // LIKE SYSTEM
+  const handleLikeToggle =
+    async (
+      e: React.MouseEvent
+    ) => {
 
-    e.preventDefault();
-    e.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
 
-    if (isLoadingLike) return;
+      if (isLoadingLike)
+        return;
 
-    setIsLoadingLike(true);
+      setIsLoadingLike(true);
 
-    const likedWallpapers =
-      JSON.parse(
-        localStorage.getItem(
-          "liked_souls"
-        ) || "[]"
-      );
-
-    if (isLiked) {
-
-      setCurrentLikes((prev) =>
-        Math.max(prev - 1, 0)
-      );
-
-      setIsLiked(false);
-
-      const updatedLikes =
-        likedWallpapers.filter(
-          (likedId: string) =>
-            likedId !== id
+      const likedWallpapers =
+        JSON.parse(
+          localStorage.getItem(
+            "liked_souls"
+          ) || "[]"
         );
 
-      localStorage.setItem(
-        "liked_souls",
-        JSON.stringify(updatedLikes)
-      );
+      if (isLiked) {
 
-      await supabase.rpc(
-        "decrement_likes",
-        { row_id: id }
-      );
+        setCurrentLikes(
+          (prev) =>
+            Math.max(
+              prev - 1,
+              0
+            )
+        );
 
-    } else {
+        setIsLiked(false);
 
-      setCurrentLikes(
-        (prev) => prev + 1
-      );
+        const updatedLikes =
+          likedWallpapers.filter(
+            (
+              likedId: string
+            ) =>
+              likedId !== id
+          );
 
-      setIsLiked(true);
+        localStorage.setItem(
+          "liked_souls",
+          JSON.stringify(
+            updatedLikes
+          )
+        );
 
-      localStorage.setItem(
-        "liked_souls",
-        JSON.stringify([
-          ...likedWallpapers,
-          id,
-        ])
-      );
+        await supabase.rpc(
+          "decrement_likes",
+          {
+            row_id: id,
+          }
+        );
 
-      await supabase.rpc(
-        "increment_likes",
-        { row_id: id }
-      );
-    }
+      } else {
 
-    setIsLoadingLike(false);
-  };
+        setCurrentLikes(
+          (prev) => prev + 1
+        );
+
+        setIsLiked(true);
+
+        localStorage.setItem(
+          "liked_souls",
+          JSON.stringify([
+            ...likedWallpapers,
+            id,
+          ])
+        );
+
+        await supabase.rpc(
+          "increment_likes",
+          {
+            row_id: id,
+          }
+        );
+      }
+
+      setIsLoadingLike(false);
+    };
 
   return (
     <>
@@ -294,13 +285,14 @@ function WallpaperCard({
           alt={alt || title}
           width={width}
           height={height}
-          priority={false}
           loading="lazy"
           quality={60}
           unoptimized
-          sizes="(max-width:640px) 100vw,
-                 (max-width:1024px) 50vw,
-                 33vw"
+          sizes="
+            (max-width:640px) 100vw,
+            (max-width:1024px) 50vw,
+            33vw
+          "
           style={{
             width: "100%",
             height: "auto",
@@ -325,23 +317,27 @@ function WallpaperCard({
 
           <div className="flex gap-2 flex-wrap">
 
+            {/* RESOLUTION */}
             <span className="px-2 py-1 text-[10px] font-semibold tracking-wide text-white bg-black/50 backdrop-blur-sm rounded-full border border-white/10">
               {resolution}
             </span>
 
-            {premium === true && (
+            {/* PREMIUM */}
+            {Boolean(premium) && (
               <span className="px-2 py-1 text-[10px] font-black tracking-widest text-amber-300 bg-amber-500/15 backdrop-blur-sm rounded-full border border-amber-500/20">
                 PRO
               </span>
             )}
 
+            {/* PRICE */}
             {price && (
               <span className="px-2 py-1 text-[10px] font-black tracking-widest text-yellow-200 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
                 ${price}
               </span>
             )}
 
-            {watermark === true && (
+            {/* WATERMARK */}
+            {Boolean(watermark) && (
               <span className="px-2 py-1 text-[10px] font-black tracking-widest text-red-300 bg-red-500/15 backdrop-blur-sm rounded-full border border-red-500/20">
                 WM
               </span>
@@ -349,14 +345,16 @@ function WallpaperCard({
 
           </div>
 
-          {/* LIKE BUTTON */}
+          {/* LIKE */}
           <button
             className={`pointer-events-auto opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 rounded-full backdrop-blur-md ${
               isLiked
                 ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
                 : "bg-black/40 text-white"
             }`}
-            onClick={handleLikeToggle}
+            onClick={
+              handleLikeToggle
+            }
           >
             <HeartIcon
               filled={isLiked}
@@ -378,7 +376,8 @@ function WallpaperCard({
             </h3>
 
             <p className="text-zinc-300 text-xs mt-1">
-              {author} • {currentLikes} likes
+              {author} •{" "}
+              {currentLikes} likes
             </p>
 
           </div>
@@ -408,7 +407,11 @@ function WallpaperCard({
 
           setTimeout(() => {
 
-            if (premium === true) {
+            if (
+              Boolean(
+                premium
+              )
+            ) {
 
               router.push(
                 `/wallpaper/${slug}`
@@ -426,4 +429,6 @@ function WallpaperCard({
   );
 }
 
-export default memo(WallpaperCard);
+export default memo(
+  WallpaperCard
+);

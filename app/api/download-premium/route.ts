@@ -39,7 +39,7 @@ const supabase = createClient(
 );
 
 // ------------------------
-// PREMIUM DOWNLOAD
+// PREMIUM DOWNLOAD ROUTE
 // ------------------------
 
 export async function POST(
@@ -65,7 +65,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            "Missing required parameters.",
+            "Missing parameters.",
         },
         { status: 400 }
       );
@@ -95,12 +95,11 @@ export async function POST(
     }
 
     // ------------------------
-    // CHECK CLAIM STATUS
+    // PREVENT REUSE
     // ------------------------
 
     const {
-      data: transaction,
-      error: txError,
+      data: existingTx,
     } = await supabase
       .from(
         "premium_transactions"
@@ -112,21 +111,14 @@ export async function POST(
       )
       .single();
 
-    if (txError) {
-
-      console.log(
-        "Transaction lookup:",
-        txError.message
-      );
-    }
-
-    // Prevent reuse
-    if (transaction?.claimed) {
+    if (
+      existingTx?.claimed
+    ) {
 
       return NextResponse.json(
         {
           error:
-            "This secure download link has already been consumed.",
+            "This secure link has already been consumed.",
         },
         { status: 403 }
       );
@@ -137,15 +129,23 @@ export async function POST(
     // ------------------------
 
     const {
-      data: wp,
-      error: wpError,
+      data: wallpaper,
+      error: wallpaperError,
     } = await supabase
       .from("wallpapers")
-      .select("image_url")
+      .select(`
+        id,
+        title,
+        slug,
+        image_url
+      `)
       .eq("id", wallpaperId)
       .single();
 
-    if (wpError || !wp) {
+    if (
+      wallpaperError ||
+      !wallpaper
+    ) {
 
       return NextResponse.json(
         {
@@ -157,25 +157,41 @@ export async function POST(
     }
 
     // ------------------------
-    // EXTRACT R2 FILE PATH
+    // EXACT R2 OBJECT KEY
     // ------------------------
 
-    const url =
-      new URL(wp.image_url);
+    const imageUrl =
+      wallpaper.image_url;
 
     const fileName =
-      decodeURIComponent(
-        url.pathname.substring(1)
-      );
+      imageUrl
+        .split("/")
+        .pop()
+        ?.split("?")[0];
 
-    console.log({
-      fileName,
-      bucket:
-        process.env.R2_BUCKET_NAME,
-    });
+    if (!fileName) {
+
+      return NextResponse.json(
+        {
+          error:
+            "Invalid R2 object key.",
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log(
+      "FINAL R2 KEY:",
+      fileName
+    );
+
+    console.log(
+      "BUCKET:",
+      process.env.R2_BUCKET_NAME
+    );
 
     // ------------------------
-    // GENERATE R2 SIGNED URL
+    // GENERATE SIGNED URL
     // ------------------------
 
     const signedUrl =
@@ -185,7 +201,7 @@ export async function POST(
         new GetObjectCommand({
           Bucket:
             process.env
-              .R2_BUCKET_NAME,
+              .R2_BUCKET_NAME!,
 
           Key: fileName,
         }),
@@ -195,13 +211,15 @@ export async function POST(
         }
       );
 
+    console.log(
+      "SIGNED URL GENERATED"
+    );
+
     // ------------------------
-    // MARK TRANSACTION CLAIMED
+    // MARK CLAIMED
     // ------------------------
 
-    const {
-      error: claimError,
-    } = await supabase
+    await supabase
       .from(
         "premium_transactions"
       )
@@ -215,14 +233,6 @@ export async function POST(
         claimed: true,
       });
 
-    if (claimError) {
-
-      console.error(
-        "Claim update failed:",
-        claimError
-      );
-    }
-
     // ------------------------
     // SUCCESS
     // ------------------------
@@ -235,7 +245,7 @@ export async function POST(
   } catch (error: any) {
 
     console.error(
-      "Premium download route failed:"
+      "PREMIUM DOWNLOAD ERROR:"
     );
 
     console.error(error);
