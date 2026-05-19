@@ -86,7 +86,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
   
   // We can leave this here in case you want to use hasPurchased for UI logic later!
   let hasPurchased = false;
-  if (wallpaper.is_premium && user) {
+  if (wallpaper.premium && user) {
     const { data: order } = await supabase
       .from("purchases")
       .select("id")
@@ -187,7 +187,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                 <span className="text-red-500 font-black uppercase tracking-[0.5em] text-[10px] block drop-shadow-[0_0_10px_rgba(220,38,38,0.5)]">
                   {wallpaper.category || "Elite Asset"}
                 </span>
-                {wallpaper.is_premium && (
+                {wallpaper.premium && (
                   <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">
                     PREMIUM
                   </span>
@@ -205,13 +205,12 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
 
             <div className="flex flex-col gap-4 mb-12">
               
-            // dynamic price button
                 <ProtectedDownloadButton
                   wallpaperId={wallpaper.id}
                   title={wallpaper.title}
                   url={wallpaper.image_url}
                   slug={wallpaper.slug}
-                  isPremium={wallpaper.is_premium}
+                  isPremium={wallpaper.premium}
                   price={wallpaper.price || 1.99} // Use the dynamic DB price, default to 1.99
                 />
               

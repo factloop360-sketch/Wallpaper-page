@@ -34,6 +34,9 @@ export default function MasonryGrid({ wallpapers }: MasonryGridProps) {
             author={wp.author || "Demon Creator"}
             likes={wp.likes || 0}
             resolution={wp.resolution || "ULTRA"}
+            premium={wp.premium}     //  ADDED: Explicitly pass premium status
+            watermark={wp.watermark} //  ADDED: Explicitly pass watermark status
+            price={wp.price}         //  ADDED: Explicitly pass dynamic price
           />
         </div>
       ))}

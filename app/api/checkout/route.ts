@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const returnUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/wallpaper/${wallpaperSlug}?session_id={CHECKOUT_SESSION_ID}`;
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+     // payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
