@@ -11,6 +11,7 @@ type AdminTab = "upload" | "manage" | "system";
 
 const ADMIN_CATEGORIES = ["Abstract", "Anime", "Dark", "Nature", "Cars", "Space", "Gaming"];
 
+// 1. THIS IS FOR THE UPLOAD FORM
 interface WallpaperUpload {
   title: string;
   slug: string;
@@ -22,29 +23,34 @@ interface WallpaperUpload {
   resolution: string;
   fileSize: string;
   fileType: "image" | "video";
-  previewUrl?: string; // 🚨 ADDED THIS
-  vaultKey?: string;   // 🚨 ADDED THIS
-  // 🚨 NEW: Price state for the upload form
-  price: string; 
+  price: string; // Form inputs are strings until submitted
+  previewUrl?: string; 
+  vaultKey?: string;   
 }
 
+// 2. THIS IS FOR THE DATABASE GRID (Optimized)
 interface Wallpaper {
   id: string;
   title: string;
   slug: string;
-  description: string;
   category: string;
-  tags: string[];
   premium: boolean;
-  watermark: boolean;
   resolution: string;
   image_url: string;
   likes: number; 
   downloads: number;
   views: number;
-  created_at: string;
-  // 🚨 NEW: Price definition from the database
   price: number | null; 
+  
+  // Optional heavy fields so the grid loads instantly
+  description?: string;
+  tags?: string[];
+  watermark?: boolean;
+  created_at?: string;
+  
+  // The new optimized keys
+  preview_url?: string; 
+  vault_key?: string;
 }
 
 // --- Icons ---
@@ -133,14 +139,14 @@ export default function AdminCommandCenter() {
     }
   }, [activeTab, wallpapers.length]);
 
- const fetchAssets = async () => {
+const fetchAssets = async () => {
     setIsLoadingAssets(true);
     const { data, error } = await supabase
       .from('wallpapers')
-      // ONLY pull the data the grid needs to survive. Leaves heavy descriptions behind.
-      .select('id, title, slug, category, premium, price, resolution, image_url, likes, downloads, views') 
+      // 🚨 LEAK PLUGGED: Explicitly request preview_url
+      .select('id, title, slug, category, premium, price, resolution, image_url, preview_url, likes, downloads, views') 
       .order('created_at', { ascending: false })
-      .limit(50); // ONLY fetch the 50 most recent to prevent massive payloads
+      .limit(50);
     
     if (!error && data) setWallpapers(data as Wallpaper[]);
     setIsLoadingAssets(false);
@@ -540,19 +546,25 @@ const handleUpload = async (e: React.FormEvent) => {
                   {wallpapers.map(wp => (
                     <div key={wp.id} className="bg-zinc-900/40 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-sm group shadow-xl flex flex-col">
                       
-                      <div className="relative aspect-video bg-black overflow-hidden border-b border-white/5 shrink-0">
-                        <img src={`${wp.image_url}?width=400&quality=60`} alt={wp.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-700 ease-out" />
-                        <div className="absolute top-3 left-3 flex gap-2">
-                          <div className="px-2 py-1 bg-black/60 backdrop-blur-md rounded border border-white/10 text-[8px] font-black uppercase tracking-widest text-zinc-300">
-                            {wp.category}
-                          </div>
-                          {wp.premium && (
-                            <div className="px-2 py-1 bg-amber-500/20 backdrop-blur-md rounded border border-amber-500/30 text-[8px] font-black uppercase tracking-widest text-amber-500">
-                              ${wp.price || "1.99"}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                     {/* TAB 2: MANAGE ASSETS Image UI Fix */}
+                    <div className="relative aspect-video bg-black overflow-hidden border-b border-white/5 shrink-0">
+                    {/* 🚨 LEAK PLUGGED: Use the lightweight WebP preview instead of heavy source */}
+                    <img 
+                        src={wp.preview_url || `${wp.image_url}?width=400&quality=60`} 
+                        alt={wp.title} 
+                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-700 ease-out" 
+                          />
+                      <div className="absolute top-3 left-3 flex gap-2">
+      <div className="px-2 py-1 bg-black/60 backdrop-blur-md rounded border border-white/10 text-[8px] font-black uppercase tracking-widest text-zinc-300">
+        {wp.category}
+      </div>
+      {wp.premium && (
+        <div className="px-2 py-1 bg-amber-500/20 backdrop-blur-md rounded border border-amber-500/30 text-[8px] font-black uppercase tracking-widest text-amber-500">
+          ${wp.price || "1.99"}
+        </div>
+      )}
+    </div>
+  </div>
 
                       <div className="p-5 flex-1 flex flex-col">
                         <h3 className="text-sm font-black italic uppercase tracking-tighter truncate mb-1" title={wp.title}>{wp.title}</h3>

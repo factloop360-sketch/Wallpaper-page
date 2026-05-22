@@ -11,7 +11,8 @@ interface ProtectedDownloadButtonProps {
   url: string;
   slug: string;
   isPremium?: boolean;
-  price: number; //  Corrected: Added price prop to interface
+  price: number; 
+  vaultKey?: string; // 🚨 ADDED: Expect the secure key
 }
 
 export default function ProtectedDownloadButton({
@@ -20,14 +21,17 @@ export default function ProtectedDownloadButton({
   url,
   slug,
   isPremium = false,
-  price, // 🚨 Corrected: Destructured price here
+  price,
+  vaultKey, // 🚨 ADDED
 }: ProtectedDownloadButtonProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user, isLoading } = useAuth();
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id");
+  
+  // 🚨 MATCHES LEMON SQUEEZY
+  const orderId = searchParams.get("orderId");
 
-  // --- MODE 1: STRIPE CHECKOUT INIT ---
+  // --- MODE 1: LEMON SQUEEZY CHECKOUT INIT ---
   const handleCheckout = async () => {
     setIsProcessing(true);
     try {
@@ -38,7 +42,7 @@ export default function ProtectedDownloadButton({
           wallpaperId, 
           wallpaperTitle: title, 
           wallpaperSlug: slug,
-          price: Math.round(price * 100) // 🚨 Corrected: Convert dollars to cents
+          price: Math.round(price * 100) 
         }),
       });
       const data = await res.json();
@@ -56,7 +60,7 @@ export default function ProtectedDownloadButton({
       const res = await fetch("/api/download-premium", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, wallpaperId }),
+        body: JSON.stringify({ orderId, wallpaperId }), // 🚨 Passes orderId instead of sessionId
       });
       const data = await res.json();
 
@@ -66,10 +70,7 @@ export default function ProtectedDownloadButton({
 
       await supabase.rpc("increment_downloads", { row_id: wallpaperId });
 
-      // Use the server proxy approach for downloads to avoid CORS issues
-      const filename = `${title.replace(/\s+/g, "-").toLowerCase()}-premium-demons.jpg`;
-      window.location.href = `/api/download?url=${encodeURIComponent(data.downloadUrl)}&filename=${filename}`;
-
+      window.location.href = data.downloadUrl;
       window.history.replaceState(null, '', `/wallpaper/${slug}`);
 
     } catch (error: any) {
@@ -98,10 +99,15 @@ export default function ProtectedDownloadButton({
         await supabase.from("wallpapers").update({ downloads: Math.floor(Math.random() * 100) }).eq("id", wallpaperId);
       }
 
+      // 🚨 NEW: Use the Signed URL logic if a vaultKey exists
+      if (vaultKey) {
+        window.location.href = `/api/download/free?key=${vaultKey}`;
+        return;
+      }
+
+      // 🚨 LEGACY FALLBACK
       const masterUrl = url.split("?")[0];
       const filename = `${title.replace(/\s+/g, "-").toLowerCase()}-demons-wall.jpg`;
-
-      // Trigger the server proxy to force the download safely
       window.location.href = `/api/download?url=${encodeURIComponent(masterUrl)}&filename=${filename}`;
 
     } catch (error) {
@@ -114,7 +120,7 @@ export default function ProtectedDownloadButton({
 
   // --- RENDER BLOCKS ---
 
-  if (isPremium && sessionId) {
+  if (isPremium && orderId) {
     return (
       <button
         onClick={handleClaimSecureDownload}
@@ -131,7 +137,8 @@ export default function ProtectedDownloadButton({
       <button
         onClick={handleCheckout}
         disabled={isProcessing}
-        className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-600 to-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(245,158,11,0.2)] flex items-center justify-center gap-3"
+        // 🚨 ADDED: Gold styling
+        className="w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 text-black font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(245,158,11,0.3)] border border-yellow-300/50 flex items-center justify-center gap-3"
       >
         {isProcessing ? "Connecting to Gateway..." : `Unlock Premium Asset ($${price.toFixed(2)})`}
       </button>

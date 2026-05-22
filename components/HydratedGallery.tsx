@@ -9,8 +9,8 @@ interface Wallpaper {
   slug: string;
   title: string;
   image_url: string;
-  preview_url?: string; // 🚨 NEW: For lightweight grid loading
-  vault_key?: string;   // 🚨 NEW: For secure premium/free downloads
+  preview_url?: string; 
+  vault_key?: string;   
   category: string;
   resolution: string;
   likes: number;
@@ -40,14 +40,12 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
   
   const observerTarget = useRef<HTMLDivElement | null>(null);
 
-  // Core background data fetching routine
   const fetchBatch = useCallback(async (pageNum: number, clearExisting = false) => {
     if (isLoading) return;
     setIsLoading(true);
 
     try {
-      // 🚨 EGRESS FIX: Only fetch the exact columns the Grid needs to survive.
-      // This drops the payload size by up to 90% by leaving massive descriptions and tags in the database.
+      // 🚨 DB QUERY FIX: Explicitly fetching preview_url and vault_key to pass to the UI
       let query = supabase.from("wallpapers").select(
         "id, slug, title, image_url, preview_url, vault_key, category, resolution, likes, views, downloads, author, created_at, premium, watermark, price"
       );
@@ -55,7 +53,6 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
       if (search) query = query.ilike("title", `%${search}%`);
       if (category !== "all") query = query.ilike("category", category);
 
-      // Range assignment configuration
       const fromRange = pageNum * ITEMS_PER_PAGE;
       const toRange = fromRange + ITEMS_PER_PAGE - 1;
 
@@ -74,7 +71,6 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
           break;
         case "random":
         default:
-          // Random sort works natively on range indexes using sequential seed fallbacks
           query = query.order("created_at", { ascending: true });
           break;
       }
@@ -85,19 +81,11 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
       if (error) throw error;
 
       const fetchedItems = (data as Wallpaper[]) || [];
-      
-      // If we get fewer items than requested, we have reached the end of the table
-      if (fetchedItems.length < ITEMS_PER_PAGE) {
-        setHasMore(false);
-      }
+      if (fetchedItems.length < ITEMS_PER_PAGE) setHasMore(false);
 
       setWallpapers(prev => {
         const combined = clearExisting ? fetchedItems : [...prev, ...fetchedItems];
-        
-        // Randomize the first batch if using random sorting
-        if (sort === "random" && clearExisting) {
-          return combined.sort(() => Math.random() - 0.5);
-        }
+        if (sort === "random" && clearExisting) return combined.sort(() => Math.random() - 0.5);
         return combined;
       });
 
@@ -110,7 +98,6 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
     }
   }, [category, sort, search, isLoading]);
 
-  // Reset page pagination state when URL filters change
   useEffect(() => {
     setWallpapers([]);
     setPage(0);
@@ -119,24 +106,17 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
     fetchBatch(0, true);
   }, [category, sort, search, fetchBatch]);
 
-  // Intersection Observer implementation for Infinite Scroll
   useEffect(() => {
     const currentTarget = observerTarget.current;
     if (!currentTarget || !hasMore || isLoading || isInitialLoad) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          fetchBatch(page + 1);
-        }
-      },
-      { threshold: 0.1, rootMargin: "200px" } // Starts loading 200px before reaching the bottom
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) fetchBatch(page + 1);
+      }, { threshold: 0.1, rootMargin: "200px" } 
     );
 
     observer.observe(currentTarget);
-    return () => {
-      if (currentTarget) observer.unobserve(currentTarget);
-    };
+    return () => { if (currentTarget) observer.unobserve(currentTarget); };
   }, [page, hasMore, isLoading, isInitialLoad, fetchBatch]);
 
   if (isInitialLoad) {
@@ -161,12 +141,9 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
   return (
     <div className="space-y-12">
       <div className="animate-in fade-in duration-500">
-        {/* 🚨 Passed raw wallpapers without mapping/splitting. 
-            The updated WallpaperCard now securely handles the preview vs master logic automatically. */}
         <MasonryGrid wallpapers={wallpapers} />
       </div>
 
-      {/* Invisible anchor element that triggers infinite scrolling */}
       {hasMore && (
         <div ref={observerTarget} className="w-full py-12 flex justify-center items-center">
           <div className="w-6 h-6 border-2 border-zinc-700 border-t-red-600 animate-spin rounded-full" />
