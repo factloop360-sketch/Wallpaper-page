@@ -9,6 +9,8 @@ interface Wallpaper {
   slug: string;
   title: string;
   image_url: string;
+  preview_url?: string; // 🚨 NEW: For lightweight grid loading
+  vault_key?: string;   // 🚨 NEW: For secure premium/free downloads
   category: string;
   resolution: string;
   likes: number;
@@ -44,7 +46,11 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
     setIsLoading(true);
 
     try {
-      let query = supabase.from("wallpapers").select("*");
+      // 🚨 EGRESS FIX: Only fetch the exact columns the Grid needs to survive.
+      // This drops the payload size by up to 90% by leaving massive descriptions and tags in the database.
+      let query = supabase.from("wallpapers").select(
+        "id, slug, title, image_url, preview_url, vault_key, category, resolution, likes, views, downloads, author, created_at, premium, watermark, price"
+      );
 
       if (search) query = query.ilike("title", `%${search}%`);
       if (category !== "all") query = query.ilike("category", category);
@@ -111,7 +117,7 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
     setHasMore(true);
     setIsInitialLoad(true);
     fetchBatch(0, true);
-  }, [category, sort, search]);
+  }, [category, sort, search, fetchBatch]);
 
   // Intersection Observer implementation for Infinite Scroll
   useEffect(() => {
@@ -152,19 +158,12 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
     );
   }
 
-  // Inject thumbnail optimization rules into image URLs before rendering cards
-  const optimizedWallpapers = wallpapers.map(wp => ({
-    ...wp,
-    // Cloudflare edge transformation parameters keep asset weight under 50kb in the grid
-    image_url: wp.image_url.includes("?") 
-      ? wp.image_url 
-      : `${wp.image_url}?width=600&quality=75&format=webp`
-  }));
-
   return (
     <div className="space-y-12">
       <div className="animate-in fade-in duration-500">
-        <MasonryGrid wallpapers={optimizedWallpapers} />
+        {/* 🚨 Passed raw wallpapers without mapping/splitting. 
+            The updated WallpaperCard now securely handles the preview vs master logic automatically. */}
+        <MasonryGrid wallpapers={wallpapers} />
       </div>
 
       {/* Invisible anchor element that triggers infinite scrolling */}

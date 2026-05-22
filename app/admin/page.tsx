@@ -22,6 +22,8 @@ interface WallpaperUpload {
   resolution: string;
   fileSize: string;
   fileType: "image" | "video";
+  previewUrl?: string; // 🚨 ADDED THIS
+  vaultKey?: string;   // 🚨 ADDED THIS
   // 🚨 NEW: Price state for the upload form
   price: string; 
 }
@@ -131,12 +133,14 @@ export default function AdminCommandCenter() {
     }
   }, [activeTab, wallpapers.length]);
 
-  const fetchAssets = async () => {
+ const fetchAssets = async () => {
     setIsLoadingAssets(true);
     const { data, error } = await supabase
       .from('wallpapers')
-      .select('*')
-      .order('created_at', { ascending: false });
+      // ONLY pull the data the grid needs to survive. Leaves heavy descriptions behind.
+      .select('id, title, slug, category, premium, price, resolution, image_url, likes, downloads, views') 
+      .order('created_at', { ascending: false })
+      .limit(50); // ONLY fetch the 50 most recent to prevent massive payloads
     
     if (!error && data) setWallpapers(data as Wallpaper[]);
     setIsLoadingAssets(false);
@@ -272,7 +276,7 @@ export default function AdminCommandCenter() {
     img.src = url;
   };
 
-  const handleUpload = async (e: React.FormEvent) => {
+const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) return;
     setIsUploading(true);
@@ -292,11 +296,10 @@ export default function AdminCommandCenter() {
         throw new Error(uploadResult.error);
       }
 
-      const publicUrl = uploadResult.url;
-
-      // 🚨 THE PRICING ENGINE AUTO-TOGGLE (UPLOAD) 🚨
+      // THE PRICING ENGINE AUTO-TOGGLE
       const finalPrice = formData.premium ? (parseFloat(formData.price) || 1.99) : null;
 
+      // METADATA SEPARATION: Save the preview and the locked key separately
       const { error: dbError } = await supabase.from('wallpapers').insert({
         title: formData.title,
         slug: formData.slug,
@@ -306,9 +309,12 @@ export default function AdminCommandCenter() {
         premium: formData.premium,
         watermark: formData.watermark,
         resolution: formData.resolution,
-        image_url: publicUrl,
-        price: finalPrice, // 🚨 Saving the price
-        likes: 0, downloads: 0, views: 0
+        preview_url: uploadResult.preview_url, // 🚨 The public, lightweight WebP
+        vault_key: uploadResult.file_key,      // 🚨 The secure, hidden 8K file key
+        price: finalPrice,
+        likes: 0, 
+        downloads: 0, 
+        views: 0
       });
 
       if (dbError) throw dbError;
@@ -318,6 +324,8 @@ export default function AdminCommandCenter() {
       setPreviewUrl(null);
       setSelectedFile(null);
       fetchAssets();
+
+    // 🚨 THIS IS THE MISSING PART THAT FIXES THE ERROR 🚨
     } catch (error: any) {
       alert(`Error: ${error.message}`);
     } finally {

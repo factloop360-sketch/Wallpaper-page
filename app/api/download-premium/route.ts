@@ -1,95 +1,50 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
-
-import {
-  getSignedUrl,
-} from "@aws-sdk/s3-request-presigner";
-
-import {
-  GetObjectCommand,
-} from "@aws-sdk/client-s3";
-
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2 } from "@/lib/r2";
-
-import {
-  createClient,
-} from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
 // ------------------------
-// STRIPE
+// SUPABASE (Service Role)
 // ------------------------
-
-const stripe = new Stripe(
-  process.env.STRIPE_SECRET_KEY!,
-  {
-    apiVersion:
-      "2026-04-22.dahlia" as any,
-  }
-);
-
-// ------------------------
-// SUPABASE
-// ------------------------
-
 const supabase = createClient(
-  process.env
-    .NEXT_PUBLIC_SUPABASE_URL!,
-  process.env
-    .SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // ------------------------
 // PREMIUM DOWNLOAD ROUTE
 // ------------------------
-
-export async function POST(
-  req: Request
-) {
-
+export async function POST(req: Request) {
   try {
-
-    const {
-      sessionId,
-      wallpaperId,
-    } = await req.json();
+    // Note: We now expect 'orderId' from Lemon Squeezy instead of 'sessionId'
+    const { orderId, wallpaperId } = await req.json();
 
     // ------------------------
     // VALIDATION
     // ------------------------
-
-    if (
-      !sessionId ||
-      !wallpaperId
-    ) {
-
+    if (!orderId || !wallpaperId) {
       return NextResponse.json(
-        {
-          error:
-            "Missing parameters.",
-        },
+        { error: "Missing parameters." },
         { status: 400 }
       );
     }
 
     // ------------------------
-    // VERIFY STRIPE PAYMENT
+    // VERIFY PAYMENT IN DATABASE
     // ------------------------
+    // We don't need to call Stripe/Lemon Squeezy here. 
+    // If the Webhook put it in the database, it is paid and valid.
+    const { data: existingTx, error: txError } = await supabase
+      .from("premium_transactions")
+      .select("claimed")
+      .eq("stripe_session_id", orderId) // Reusing your existing column for LS Order ID
+      .eq("wallpaper_id", wallpaperId)
+      .single();
 
-    const session =
-      await stripe.checkout.sessions.retrieve(
-        sessionId
-      );
-
-    if (
-      session.payment_status !==
-      "paid"
-    ) {
-
+    if (txError || !existingTx) {
       return NextResponse.json(
-        {
-          error:
-            "Payment not completed.",
-        },
+        { error: "Payment not found or not completed." },
         { status: 402 }
       );
     }
@@ -97,29 +52,9 @@ export async function POST(
     // ------------------------
     // PREVENT REUSE
     // ------------------------
-
-    const {
-      data: existingTx,
-    } = await supabase
-      .from(
-        "premium_transactions"
-      )
-      .select("claimed")
-      .eq(
-        "stripe_session_id",
-        sessionId
-      )
-      .single();
-
-    if (
-      existingTx?.claimed
-    ) {
-
+    if (existingTx.claimed) {
       return NextResponse.json(
-        {
-          error:
-            "This secure link has already been consumed.",
-        },
+        { error: "This secure link has already been consumed." },
         { status: 403 }
       );
     }
@@ -127,31 +62,21 @@ export async function POST(
     // ------------------------
     // FETCH WALLPAPER
     // ------------------------
-
-    const {
-      data: wallpaper,
-      error: wallpaperError,
-    } = await supabase
+    const { data: wallpaper, error: wallpaperError } = await supabase
       .from("wallpapers")
       .select(`
         id,
         title,
         slug,
-        image_url
+        image_url,
+        vault_key
       `)
       .eq("id", wallpaperId)
       .single();
 
-    if (
-      wallpaperError ||
-      !wallpaper
-    ) {
-
+    if (wallpaperError || !wallpaper) {
       return NextResponse.json(
-        {
-          error:
-            "Wallpaper not found.",
-        },
+        { error: "Wallpaper not found." },
         { status: 404 }
       );
     }
@@ -159,103 +84,57 @@ export async function POST(
     // ------------------------
     // EXACT R2 OBJECT KEY
     // ------------------------
+    // Prefer the secure vault_key, but fallback to your old image_url parsing if needed
+    let fileName = wallpaper.vault_key;
 
-    const imageUrl =
-      wallpaper.image_url;
-
-    const fileName =
-      imageUrl
-        .split("/")
-        .pop()
-        ?.split("?")[0];
+    if (!fileName && wallpaper.image_url) {
+      fileName = wallpaper.image_url.split("/").pop()?.split("?")[0];
+    }
 
     if (!fileName) {
-
       return NextResponse.json(
-        {
-          error:
-            "Invalid R2 object key.",
-        },
+        { error: "Invalid R2 object key." },
         { status: 500 }
       );
     }
 
-    console.log(
-      "FINAL R2 KEY:",
-      fileName
-    );
-
-    console.log(
-      "BUCKET:",
-      process.env.R2_BUCKET_NAME
-    );
+    console.log("FINAL R2 KEY:", fileName);
+    console.log("BUCKET:", process.env.R2_BUCKET_NAME);
 
     // ------------------------
     // GENERATE SIGNED URL
     // ------------------------
-
-    const signedUrl =
-      await getSignedUrl(
-        r2,
-
-        new GetObjectCommand({
-          Bucket:
-            process.env
-              .R2_BUCKET_NAME!,
-
-          Key: fileName,
-        }),
-
-        {
-          expiresIn: 60,
-        }
-      );
-
-    console.log(
-      "SIGNED URL GENERATED"
+    const signedUrl = await getSignedUrl(
+      r2,
+      new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME!,
+        Key: fileName,
+      }),
+      { expiresIn: 60 }
     );
+
+    console.log("SIGNED URL GENERATED");
 
     // ------------------------
     // MARK CLAIMED
     // ------------------------
-
+    // We use update() instead of upsert() since we already know the row exists
     await supabase
-      .from(
-        "premium_transactions"
-      )
-      .upsert({
-        stripe_session_id:
-          sessionId,
-
-        wallpaper_id:
-          wallpaperId,
-
-        claimed: true,
-      });
+      .from("premium_transactions")
+      .update({ claimed: true })
+      .eq("stripe_session_id", orderId);
 
     // ------------------------
     // SUCCESS
     // ------------------------
-
     return NextResponse.json({
-      downloadUrl:
-        signedUrl,
+      downloadUrl: signedUrl,
     });
 
   } catch (error: any) {
-
-    console.error(
-      "PREMIUM DOWNLOAD ERROR:"
-    );
-
-    console.error(error);
-
+    console.error("PREMIUM DOWNLOAD ERROR:", error);
     return NextResponse.json(
-      {
-        error:
-          error.message ||
-          "Internal server error",
-      },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }

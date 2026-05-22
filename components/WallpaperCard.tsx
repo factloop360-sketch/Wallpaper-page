@@ -18,6 +18,8 @@ export interface WallpaperCardProps {
   id: string;
   slug: string;
   src: string;
+  previewUrl?: string; // NEW: The highly compressed WebP preview
+  vaultKey?: string;   // NEW: The secure 8K storage key
   title: string;
   author: string;
   likes: number;
@@ -75,6 +77,8 @@ function WallpaperCard({
   id,
   slug,
   src,
+  previewUrl, // 🚨 ADDED: Pulls the preview key from the database
+  vaultKey,   // 🚨 ADDED: Pulls the secure key from the database
   title,
   author,
   likes,
@@ -121,41 +125,23 @@ function WallpaperCard({
 
   }, [id]);
 
-  // DEBUG
-  console.log({
-    title,
-    premium,
-    watermark,
-    price,
-  });
-
   // FREE DOWNLOAD
-  const triggerBinaryDownload =
-    async () => {
-
-      try {
-
-        const masterUrl =
-          src.split("?")[0];
-
-        const filename =
-          `${title
-            .replace(/\s+/g, "-")
-            .toLowerCase()}.jpg`;
-
-        window.location.href =
-          `/api/download?url=${encodeURIComponent(
-            masterUrl
-          )}&filename=${filename}`;
-
-      } catch (error) {
-
-        console.error(
-          "Download failed:",
-          error
-        );
+  const triggerBinaryDownload = async () => {
+    try {
+      // If it's a new secure asset, use the vault key API route
+      if (vaultKey) {
+        window.location.href = `/api/download/free?key=${vaultKey}`;
+        return;
       }
-    };
+
+      // FALLBACK: For older wallpapers uploaded before the upgrade
+      const masterUrl = src.split("?")[0];
+      const filename = `${title.replace(/\s+/g, "-").toLowerCase()}.jpg`;
+      window.location.href = `/api/download?url=${encodeURIComponent(masterUrl)}&filename=${filename}`;
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
 
   // DOWNLOAD CLICK
   const handleDownloadClick =
@@ -169,19 +155,15 @@ function WallpaperCard({
 
       // LOGIN REQUIRED
       if (!user) {
-
         setIsModalOpen(true);
-
         return;
       }
 
       // PREMIUM → DETAIL PAGE
       if (Boolean(premium)) {
-
         router.push(
           `/wallpaper/${slug}`
         );
-
         return;
       }
 
@@ -279,24 +261,17 @@ function WallpaperCard({
         className="group relative block break-inside-avoid rounded-2xl overflow-hidden bg-zinc-900 shadow-sm hover:shadow-xl transition-all duration-300"
       >
 
-        {/* IMAGE */}
+       {/* IMAGE */}
         <Image
-          src={`${src}?width=500`}
+          src={previewUrl || `${src}?width=500`}
           alt={alt || title}
           width={width}
           height={height}
           loading="lazy"
           quality={60}
-          unoptimized
-          sizes="
-            (max-width:640px) 100vw,
-            (max-width:1024px) 50vw,
-            33vw
-          "
-          style={{
-            width: "100%",
-            height: "auto",
-          }}
+          unoptimized // CRITICAL: Bypasses Vercel CPU limits
+          sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
+          style={{ width: "100%", height: "auto" }}
           onLoad={() =>
             setIsLoaded(true)
           }

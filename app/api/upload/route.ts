@@ -1,66 +1,75 @@
 import { NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2 } from "@/lib/r2";
+import sharp from "sharp";
 
 export async function POST(req: Request) {
   try {
-      const formData = await req.formData();
-          const file = formData.get("file") as File;
+    const formData = await req.formData();
+    const file = formData.get("file") as File;
 
-              if (!file) {
-                    return NextResponse.json(
-                            { success: false, error: "No file object detected in the upload payload." },
-                                    { status: 400 }
-                                          );
-                                              }
+    if (!file) {
+      return NextResponse.json({ success: false, error: "No file object detected." }, { status: 400 });
+    }
 
-                                                  // Safety check to verify environment keys are being read by the server runtime
-                                                      if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
-                                                            return NextResponse.json(
-                                                                    { 
-                                                                              success: false, 
-                                                                                        error: `Server Configuration Mismatch: BUCKET_NAME is ${process.env.R2_BUCKET_NAME ? 'Defined' : 'Missing'}, PUBLIC_URL is ${process.env.R2_PUBLIC_URL ? 'Defined' : 'Missing'}` 
-                                                                                                },
-                                                                                                        { status: 500 }
-                                                                                                              );
-                                                                                                                  }
+    if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
+      return NextResponse.json({ success: false, error: `Server Configuration Mismatch.` }, { status: 500 });
+    }
 
-                                                                                                                      // Convert file to a standard portable modern byte array (Avoids Node-specific Buffer crashes)
-                                                                                                                          const arrayBuffer = await file.arrayBuffer();
-                                                                                                                              const uint8Array = new Uint8Array(arrayBuffer);
+    // Convert file to a Node Buffer for Sharp processing and S3 upload
+    const arrayBuffer = await file.arrayBuffer();
+    const masterBuffer = Buffer.from(arrayBuffer);
 
-                                                                                                                                  // Sanitize file name to prevent string interpolation issues in headers
-                                                                                                                                      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-                                                                                                                                          const fileName = `${Date.now()}-${sanitizedName}`;
+    // Sanitize file name
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    
+    // 🚨 METADATA SEPARATION: Create two distinct keys
+    const masterFileName = `vault-${Date.now()}-${sanitizedName}`;
+    const previewFileName = `preview-${Date.now()}-${sanitizedName.split('.')[0]}.webp`;
 
-                                                                                                                                              // Execute upload to Cloudflare storage cluster
-                                                                                                                                                  await r2.send(
-                                                                                                                                                        new PutObjectCommand({
-                                                                                                                                                                Bucket: process.env.R2_BUCKET_NAME,
-                                                                                                                                                                        Key: fileName,
-                                                                                                                                                                                Body: uint8Array, // Passing standard unified stream payload
-                                                                                                                                                                                        ContentType: file.type,
-                                                                                                                                                                                              })
-                                                                                                                                                                                                  );
+    // 1. Generate a lightweight, highly compressed WebP preview
+    const previewBuffer = await sharp(masterBuffer)
+      .resize({ width: 600, withoutEnlargement: true }) // Perfect size for grid cards
+      .webp({ quality: 80 })
+      .toBuffer();
 
-                                                                                                                                                                                                      const imageUrl = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    // 2. Upload the Public Preview (Aggressively Edge Cached)
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: previewFileName,
+        Body: previewBuffer,
+        ContentType: "image/webp",
+        CacheControl: "public, max-age=31536000, immutable", // Tells Cloudflare to cache for 1 year!
+      })
+    );
 
-                                                                                                                                                                                                          return NextResponse.json({
-                                                                                                                                                                                                                success: true,
-                                                                                                                                                                                                                      url: imageUrl,
-                                                                                                                                                                                                                          });
+    // 3. Upload the Secure Master File (Private Vault)
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: masterFileName,
+        Body: masterBuffer,
+        ContentType: file.type,
+        // Private cache control ensures CDNs don't cache secure signed-url requests
+        CacheControl: "private, max-age=31536000, immutable", 
+      })
+    );
 
-                                                                                                                                                                                                                            } catch (error: any) {
-                                                                                                                                                                                                                                console.error("CRITICAL API ROUTE EXCEPTION:", error);
+    // Only the preview gets a public URL. The master file remains just a key.
+    const previewUrl = `${process.env.R2_PUBLIC_URL}/${previewFileName}`;
 
-                                                                                                                                                                                                                                    // This converts internal crashes to JSON, ensuring the frontend never encounters '<html>' again
-                                                                                                                                                                                                                                        return NextResponse.json(
-                                                                                                                                                                                                                                              { 
-                                                                                                                                                                                                                                                      success: false, 
-                                                                                                                                                                                                                                                              error: `Server Exception: ${error.message || "An unhandled storage pipeline crash occurred."}` 
-                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                          { status: 500 }
-                                                                                                                                                                                                                                                                              );
-                                                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                                                
+    return NextResponse.json({
+      success: true,
+      preview_url: previewUrl,
+      file_key: masterFileName, // Hand this back to save as 'vault_key' in Supabase
+    });
+
+  } catch (error: any) {
+    console.error("CRITICAL API ROUTE EXCEPTION:", error);
+    return NextResponse.json(
+      { success: false, error: `Server Exception: ${error.message}` },
+      { status: 500 }
+    );
+  }
+}
