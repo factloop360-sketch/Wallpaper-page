@@ -47,7 +47,7 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
     try {
       // 🚨 DB QUERY FIX: Explicitly fetching preview_url and vault_key to pass to the UI
       let query = supabase.from("wallpapers").select(
-        "id, slug, title, image_url, preview_url, vault_key, category, resolution, likes, views, downloads, author, created_at, premium, watermark, price"
+  "id, slug, title, preview_url, vault_key, category, resolution, likes, views, downloads, author, created_at, premium, watermark, price"
       );
 
       if (search) query = query.ilike("title", `%${search}%`);
@@ -96,7 +96,7 @@ export default function HydratedGallery({ category, sort, search }: HydratedGall
       setIsLoading(false);
       setIsInitialLoad(false);
     }
-  }, [category, sort, search, isLoading]);
+  },[category, sort, search]);
 
   useEffect(() => {
     setWallpapers([]);

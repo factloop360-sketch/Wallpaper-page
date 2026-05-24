@@ -3,15 +3,15 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'pub-518d6ddd1158470e905f52e633c1350f.r2.dev', // Your exact R2 public domain
+        protocol: "https",
+        hostname: new URL(process.env.R2_PUBLIC_URL).hostname,
       },
       {
-        protocol: 'https',
-        hostname: '*.supabase.co', // Whitelists your legacy Supabase storage
-      }
+        protocol: "https",
+        hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname,
+      },
     ],
   },
 };
 
-export default nextConfig; // (Use module.exports = nextConfig; if it's a .js file)
+module.exports = nextConfig;

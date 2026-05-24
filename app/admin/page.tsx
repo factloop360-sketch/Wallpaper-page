@@ -24,8 +24,8 @@ interface WallpaperUpload {
   fileSize: string;
   fileType: "image" | "video";
   price: string; // Form inputs are strings until submitted
-  previewUrl?: string; 
-  vaultKey?: string;   
+  preview_Url?: string; 
+  vault_Key?: string;   
 }
 
 // 2. THIS IS FOR THE DATABASE GRID (Optimized)
@@ -84,7 +84,7 @@ export default function AdminCommandCenter() {
   });
   const [tagInput, setTagInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [preview_Url, setPreview_Url] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [activeRatio, setActiveRatio] = useState<DeviceRatio>("phone");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,7 +144,8 @@ const fetchAssets = async () => {
     const { data, error } = await supabase
       .from('wallpapers')
       // 🚨 LEAK PLUGGED: Explicitly request preview_url
-      .select('id, title, slug, category, premium, price, resolution, image_url, preview_url, likes, downloads, views') 
+     // .select('id, title, slug, category, premium, price, resolution, image_url, preview_url, likes, downloads, views') 
+     .select('id, title, slug, category, premium, price, resolution, image_url, preview_url, vault_key, likes, downloads, views')
       .order('created_at', { ascending: false })
       .limit(50);
     
@@ -154,27 +155,84 @@ const fetchAssets = async () => {
 
   // --- Delete Logic (OWNER ONLY) ---
   const confirmDelete = async () => {
-    if (!deleteTarget || adminRole !== 'owner') return;
-    setIsDeleting(true);
 
-    try {
-      await fetch("/api/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: deleteTarget.image_url }),
-      });
+  if (
+    !deleteTarget ||
+    adminRole !== "owner"
+  ) return;
 
-      const { error: dbError } = await supabase.from('wallpapers').delete().eq('id', deleteTarget.id);
-      if (dbError) throw dbError;
+  setIsDeleting(true);
 
-      setWallpapers(prev => prev.filter(wp => wp.id !== deleteTarget.id));
-      setDeleteTarget(null);
-    } catch (error: any) {
-      alert(`Deletion Failed: ${error.message}`);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  try {
+
+    // ------------------------
+    // DELETE R2 FILES
+    // ------------------------
+
+    await fetch("/api/delete", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+
+        preview_Url:
+          deleteTarget.preview_url,
+
+        vault_Key:
+          deleteTarget.vault_key,
+
+      }),
+
+    });
+
+    // ------------------------
+    // DELETE DATABASE ROW
+    // ------------------------
+
+    const {
+      error: dbError,
+    } = await supabase
+      .from("wallpapers")
+      .delete()
+      .eq(
+        "id",
+        deleteTarget.id
+      );
+
+    if (dbError)
+      throw dbError;
+
+    // ------------------------
+    // UPDATE UI
+    // ------------------------
+
+    setWallpapers(prev =>
+      prev.filter(
+        wp =>
+          wp.id !==
+          deleteTarget.id
+      )
+    );
+
+    setDeleteTarget(null);
+
+  } catch (error: any) {
+
+    alert(
+      `Deletion Failed: ${error.message}`
+    );
+
+  } finally {
+
+    setIsDeleting(false);
+
+  }
+};
 
   // --- Edit Logic ---
   const openEditModal = (wp: Wallpaper) => {
@@ -277,7 +335,7 @@ const fetchAssets = async () => {
     const img = new window.Image();
     img.onload = () => {
       setFormData(p => ({ ...p, fileSize: sizeFormatted, resolution: `${img.naturalWidth}x${img.naturalHeight}` }));
-      setPreviewUrl(url);
+      setPreview_Url(url);
     };
     img.src = url;
   };
@@ -306,28 +364,38 @@ const handleUpload = async (e: React.FormEvent) => {
       const finalPrice = formData.premium ? (parseFloat(formData.price) || 1.99) : null;
 
       // METADATA SEPARATION: Save the preview and the locked key separately
-      const { error: dbError } = await supabase.from('wallpapers').insert({
-        title: formData.title,
-        slug: formData.slug,
-        description: formData.description,
-        category: formData.category,
-        tags: formData.tags,
-        premium: formData.premium,
-        watermark: formData.watermark,
-        resolution: formData.resolution,
-        preview_url: uploadResult.preview_url, // 🚨 The public, lightweight WebP
-        vault_key: uploadResult.file_key,      // 🚨 The secure, hidden 8K file key
-        price: finalPrice,
-        likes: 0, 
-        downloads: 0, 
-        views: 0
-      });
+     const { error: dbError } = await supabase
+  .from("wallpapers")
+  .insert({
+    title: formData.title,
+    slug: formData.slug,
+    description: formData.description,
+    category: formData.category,
+    tags: formData.tags,
+
+    premium: formData.premium,
+    watermark: formData.watermark,
+
+    resolution: formData.resolution,
+
+    // ONLY lightweight preview used in UI
+    preview_url: uploadResult.preview_url,
+
+    // Secure original file reference
+    vault_key: uploadResult.vault_key,
+
+    price: finalPrice,
+
+    likes: 0,
+    downloads: 0,
+    views: 0,
+  });
 
       if (dbError) throw dbError;
       alert("Asset live in the Abyss!");
       
       setFormData({ title: "", slug: "", description: "", category: ADMIN_CATEGORIES[0], tags: [], premium: false, watermark: true, resolution: "Detecting...", fileSize: "0MB", fileType: "image", price: "" });
-      setPreviewUrl(null);
+      setPreview_Url(null);
       setSelectedFile(null);
       fetchAssets();
 
@@ -364,7 +432,13 @@ const handleUpload = async (e: React.FormEvent) => {
       <aside className="w-64 border-r border-white/5 bg-black/50 p-6 flex flex-col hidden md:flex shrink-0 z-20">
         <div className="flex items-center gap-4 mb-12">
           <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden relative">
-            <Image src="/logo.jpg" alt="Logo" fill className="object-cover opacity-80 grayscale" />
+           <Image
+             src="/logo.jpg"
+              alt="Logo"
+             fill
+             sizes="40px"
+           className="object-cover opacity-80 grayscale"
+            />
           </div>
           <div>
             <h2 className="text-xs font-black uppercase tracking-widest text-red-500">Overlord</h2>
@@ -428,7 +502,7 @@ const handleUpload = async (e: React.FormEvent) => {
             <form onSubmit={handleUpload} className="grid grid-cols-1 lg:grid-cols-12 gap-12 animate-in fade-in duration-700">
               <div className="lg:col-span-7 space-y-6">
                 <div onClick={() => fileInputRef.current?.click()} className="relative aspect-video rounded-3xl border-2 border-dashed border-zinc-800 hover:border-red-500/50 cursor-pointer overflow-hidden flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm transition-all shadow-inner">
-                  {previewUrl ? <img src={previewUrl} className="w-full h-full object-contain bg-black" alt="preview" /> : <div className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Select High-Res Asset</div>}
+                  {preview_Url ? <img src={preview_Url} className="w-full h-full object-contain bg-black" alt="preview" /> : <div className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Select High-Res Asset</div>}
                 </div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
 
@@ -508,7 +582,7 @@ const handleUpload = async (e: React.FormEvent) => {
                   activeRatio === "ultrawide" ? "w-full aspect-[21/9] rounded-2xl" : "w-full aspect-[16/9] rounded-xl"
                 }`}>
                    <div className="absolute inset-0 flex items-center justify-center">
-                     {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover" alt="Sim" /> : <div className="text-zinc-800 font-black text-2xl uppercase italic">No Signal</div>}
+                     {preview_Url ? <img src={preview_Url} className="w-full h-full object-cover" alt="Sim" /> : <div className="text-zinc-800 font-black text-2xl uppercase italic">No Signal</div>}
                    </div>
                    <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-black via-black/80 to-transparent text-white">
                       <div className="flex gap-2 mb-3">
@@ -549,11 +623,11 @@ const handleUpload = async (e: React.FormEvent) => {
                      {/* TAB 2: MANAGE ASSETS Image UI Fix */}
                     <div className="relative aspect-video bg-black overflow-hidden border-b border-white/5 shrink-0">
                     {/* 🚨 LEAK PLUGGED: Use the lightweight WebP preview instead of heavy source */}
-                    <img 
-                        src={wp.preview_url || `${wp.image_url}?width=400&quality=60`} 
-                        alt={wp.title} 
-                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-700 ease-out" 
-                          />
+                    <img
+                       src={wp.preview_url}
+                         alt={wp.title}
+                       className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-700 ease-out"
+                      />
                       <div className="absolute top-3 left-3 flex gap-2">
       <div className="px-2 py-1 bg-black/60 backdrop-blur-md rounded border border-white/10 text-[8px] font-black uppercase tracking-widest text-zinc-300">
         {wp.category}

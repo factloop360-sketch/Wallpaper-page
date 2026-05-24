@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: WallpaperPageProps, parent: R
 
   if (!wallpaper) return { title: "Asset Not Found | Wallpaper Demons" };
 
-  const ogImage = wallpaper.preview_url || `${wallpaper.image_url}?width=1200&height=630&quality=80`;
+  const ogImage = wallpaper.preview_url || `${wallpaper.preview_url}?width=1200&height=630&quality=80`;
 
   return {
     title: `${wallpaper.title} | ${wallpaper.category} 8K Wallpaper`,
@@ -66,8 +66,8 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
   supabase.rpc('increment_views', { row_id: wallpaper.id }).then();
 
   // 🚨 LEAK PLUGGED: Use the lightweight WebP preview first!
-  const optimizedPreviewUrl = wallpaper.preview_url || `${wallpaper.image_url}?width=1600&format=webp&quality=85`;
-  const microscopicBlurUrl = wallpaper.preview_url || `${wallpaper.image_url}?width=200&format=webp&quality=50`;
+  const optimizedPreview_Url = wallpaper.preview_url || `${wallpaper.preview_url}?width=1600&format=webp&quality=85`;
+  const microscopicBlurUrl = wallpaper.preview_url || `${wallpaper.preview_url}?width=200&format=webp&quality=50`;
 
   const { data: related } = await supabase
     .from("wallpapers")
@@ -83,8 +83,8 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
     "@type": "ImageObject",
     "name": wallpaper.title,
     "description": wallpaper.description || `High resolution ${wallpaper.category} wallpaper`,
-    "contentUrl": wallpaper.image_url,
-    "thumbnailUrl": optimizedPreviewUrl,
+    "contentUrl": wallpaper.preview_url,
+    "thumbnailUrl": optimizedPreview_Url,
     "author": { "@type": "Person", "name": wallpaper.author || "Demon Creator" },
     "keywords": wallpaper.tags?.join(", ")
   };
@@ -113,7 +113,7 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
           <div className="lg:col-span-8 flex flex-col gap-6">
             <div className="relative w-full aspect-[16/10] bg-zinc-950/50 backdrop-blur-sm rounded-[2.5rem] overflow-hidden border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-center justify-center group">
               <Image
-                src={optimizedPreviewUrl}
+                src={optimizedPreview_Url}
                 alt={wallpaper.title}
                 fill
                 priority
@@ -169,11 +169,11 @@ export default async function WallpaperPage({ params }: WallpaperPageProps) {
                 <ProtectedDownloadButton
                   wallpaperId={wallpaper.id}
                   title={wallpaper.title}
-                  url={wallpaper.image_url}
+                  url={wallpaper.preview_url}
                   slug={wallpaper.slug}
                   isPremium={wallpaper.premium}
                   price={wallpaper.price || 1.99} 
-                  vaultKey={wallpaper.vault_key} // 🚨 JUST ADD THIS LINE
+                  vault_Key={wallpaper.vault_key} // 🚨 JUST ADD THIS LINE
                 />
               
               <div className="grid grid-cols-2 gap-4">

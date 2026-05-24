@@ -6,9 +6,9 @@ import { r2 } from "@/lib/r2";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const vaultKey = searchParams.get("key");
+    const vault_Key = searchParams.get("key");
 
-    if (!vaultKey) {
+    if (!vault_Key) {
       return NextResponse.json({ error: "Access Denied: Missing Vault Key." }, { status: 400 });
     }
 
@@ -19,10 +19,10 @@ export async function GET(req: Request) {
     // 1. Prepare the exact file retrieval command
     const command = new GetObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
-      Key: vaultKey,
+      Key: vault_Key,
       // 🚨 CRITICAL: This specific line tells the browser to DOWNLOAD the file 
       // instead of just opening the image in a new tab!
-      ResponseContentDisposition: `attachment; filename="${vaultKey.replace("vault-", "")}"`,
+      ResponseContentDisposition: `attachment; filename="${vault_Key.replace("vault-", "")}"`,
     });
 
     // 2. Generate the temporary, cryptographically signed URL

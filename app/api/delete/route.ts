@@ -15,15 +15,21 @@ export async function POST(
     const body =
       await req.json();
 
-    const imageUrl =
-      body.imageUrl;
+    const preview_Url =
+      body.preview_Url;
 
-    if (!imageUrl) {
+    const vault_Key =
+      body.vault_Key;
+
+    if (
+      !preview_Url ||
+      !vault_Key
+    ) {
 
       return NextResponse.json(
         {
           error:
-            "Missing image URL",
+            "Missing required fields",
         },
         {
           status: 400,
@@ -31,28 +37,56 @@ export async function POST(
       );
     }
 
-    // Extract filename from URL
-    const fileName =
-      imageUrl.split("/").pop();
+    // ------------------------
+    // EXTRACT PREVIEW FILE
+    // ------------------------
 
-    if (!fileName) {
+    const previewFileName =
+      preview_Url
+        .split("/")
+        .pop()
+        ?.split("?")[0];
+
+    if (!previewFileName) {
 
       return NextResponse.json(
         {
           error:
-            "Invalid file name",
+            "Invalid preview filename",
         },
         {
           status: 400,
         }
       );
     }
+
+    // ------------------------
+    // DELETE PREVIEW
+    // ------------------------
 
     await r2.send(
       new DeleteObjectCommand({
         Bucket:
-          process.env.R2_BUCKET_NAME!,
-        Key: fileName,
+          process.env
+            .R2_BUCKET_NAME!,
+
+        Key:
+          previewFileName,
+      })
+    );
+
+    // ------------------------
+    // DELETE ORIGINAL
+    // ------------------------
+
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket:
+          process.env
+            .R2_BUCKET_NAME!,
+
+        Key:
+          vault_Key,
       })
     );
 
@@ -61,6 +95,10 @@ export async function POST(
     });
 
   } catch (error) {
+
+    console.error(
+      "DELETE ERROR:"
+    );
 
     console.error(error);
 

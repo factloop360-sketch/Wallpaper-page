@@ -12,7 +12,7 @@ interface ProtectedDownloadButtonProps {
   slug: string;
   isPremium?: boolean;
   price: number; 
-  vaultKey?: string; // 🚨 ADDED: Expect the secure key
+  vault_Key?: string; // 🚨 ADDED: Expect the secure key
 }
 
 export default function ProtectedDownloadButton({
@@ -22,7 +22,7 @@ export default function ProtectedDownloadButton({
   slug,
   isPremium = false,
   price,
-  vaultKey, // 🚨 ADDED
+  vault_Key, // 🚨 ADDED
 }: ProtectedDownloadButtonProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user, isLoading } = useAuth();
@@ -99,9 +99,9 @@ export default function ProtectedDownloadButton({
         await supabase.from("wallpapers").update({ downloads: Math.floor(Math.random() * 100) }).eq("id", wallpaperId);
       }
 
-      // 🚨 NEW: Use the Signed URL logic if a vaultKey exists
-      if (vaultKey) {
-        window.location.href = `/api/download/free?key=${vaultKey}`;
+      // 🚨 NEW: Use the Signed URL logic if a vault_Key exists
+      if (vault_Key) {
+        window.location.href = `/api/download/free?key=${vault_Key}`;
         return;
       }
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+// @ts-ignore: Next.js handles global CSS imports at build time
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 
